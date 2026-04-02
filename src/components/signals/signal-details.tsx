@@ -28,7 +28,7 @@ const technicalChecks = [
 
 export function SignalDetails() {
   return (
-    <div className="grid grid-cols-2 gap-1">
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
       {/* Zone Analysis */}
       <div className="bg-surface-container-high p-6">
         <div className="flex items-center gap-2 mb-4">

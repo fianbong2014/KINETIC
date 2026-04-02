@@ -8,23 +8,23 @@ export default function SignalsPage() {
   return (
     <div className="flex flex-col gap-1 h-full">
       {/* Header */}
-      <div className="bg-surface-container-low p-6 lg:p-8">
+      <div className="bg-surface-container-low p-4 sm:p-6 lg:p-8">
         <SignalHeader />
       </div>
 
       {/* Main Grid */}
-      <div className="grid grid-cols-12 gap-1 flex-1 min-h-0">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-1 flex-1 min-h-0">
         {/* Left Column */}
-        <div className="col-span-8 flex flex-col gap-1">
+        <div className="lg:col-span-8 flex flex-col gap-1">
           {/* Cyan Alert Banner */}
-          <div className="bg-primary-container p-4 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <AlertTriangle className="w-5 h-5 text-on-primary-container" />
-              <span className="text-sm font-bold text-on-primary-container tracking-wider uppercase">
+          <div className="bg-primary-container p-3 sm:p-4 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <AlertTriangle className="w-5 h-5 text-on-primary-container shrink-0" />
+              <span className="text-[10px] sm:text-sm font-bold text-on-primary-container tracking-wider uppercase truncate">
                 Potential Entry Detected
               </span>
             </div>
-            <button className="bg-primary text-on-primary text-[10px] font-bold tracking-wider uppercase px-4 py-2 hover:opacity-90 transition-opacity">
+            <button className="bg-primary text-on-primary text-[10px] font-bold tracking-wider uppercase px-3 sm:px-4 py-2 hover:opacity-90 transition-opacity shrink-0">
               Risk Calculator
             </button>
           </div>
@@ -37,7 +37,7 @@ export default function SignalsPage() {
         </div>
 
         {/* Right Column */}
-        <div className="col-span-4 flex flex-col gap-1">
+        <div className="lg:col-span-4 flex flex-col gap-1">
           {/* Trade Plan */}
           <TradePlan />
 
@@ -56,8 +56,8 @@ export default function SignalsPage() {
       </div>
 
       {/* Terminal Log */}
-      <div className="bg-surface-container-lowest p-4 border border-outline-variant/5">
-        <span className="text-[10px] font-mono text-on-surface-variant">
+      <div className="bg-surface-container-lowest p-3 sm:p-4 border border-outline-variant/5">
+        <span className="text-[10px] font-mono text-on-surface-variant break-all">
           [SYSTEM] SIGNAL_SCANNER::NEW_CONFLUENCE_DETECTED_AT_08:42:01_UTC SUCCESS
           KINETIC_CORE_V2.0.4
         </span>
