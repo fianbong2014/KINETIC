@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AnimatedPrice } from "@/components/ui/animated-price";
 import { usePrice } from "@/components/providers/price-provider";
+import { PairSelector } from "@/components/layout/pair-selector";
 import { Bell, Wallet } from "lucide-react";
 
 const navLinks = [
@@ -15,7 +16,7 @@ const navLinks = [
 
 export function Topbar() {
   const pathname = usePathname();
-  const { price, priceChangePercent24h, isConnected } = usePrice();
+  const { price, priceChangePercent24h, isConnected, pair } = usePrice();
 
   const changePercent = priceChangePercent24h
     ? `${priceChangePercent24h >= 0 ? "+" : ""}${priceChangePercent24h.toFixed(2)}%`
@@ -57,6 +58,9 @@ export function Topbar() {
 
         {/* Right: Price + Execute + Icons */}
         <div className="flex items-center gap-4">
+          {/* Pair selector */}
+          <PairSelector />
+
           {/* Price display */}
           <div className="flex flex-col items-end">
             <div className="flex items-center gap-1.5">
@@ -66,7 +70,7 @@ export function Topbar() {
                 className="text-xs font-bold text-on-surface-variant"
               />
               <span className="text-xs font-bold text-on-surface-variant">
-                BTC/USD
+                {pair.display}
               </span>
               {isConnected && (
                 <span className="w-1.5 h-1.5 bg-emerald-accent animate-pulse" />

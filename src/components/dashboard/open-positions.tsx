@@ -6,17 +6,27 @@ import { formatPrice, formatUsd, formatPct } from "@/lib/format";
 
 export function OpenPositions() {
   const { positions, loading, close, remove } = usePositions("active");
-  const { price: currentPrice } = usePrice();
+  const { price: currentPrice, symbol: currentSymbol } = usePrice();
+
+  // Live exit price is only available when the selected pair matches the position's asset
+  function getExitPrice(pos: Position): number {
+    return pos.asset === currentSymbol && currentPrice > 0
+      ? currentPrice
+      : pos.entry;
+  }
 
   async function handleClose(pos: Position) {
-    // Use current BTC price as exit price for BTC positions; otherwise use entry (no live price)
-    const exitPrice = pos.asset.startsWith("BTC") ? currentPrice : pos.entry;
+    const exitPrice = getExitPrice(pos);
     const pnl =
       pos.side === "LONG"
         ? (exitPrice - pos.entry) * pos.size
         : (pos.entry - exitPrice) * pos.size;
 
-    if (confirm(`Close ${pos.asset} ${pos.side} @ $${formatPrice(exitPrice)}?\nPNL: ${formatUsd(pnl, { signed: true })}`)) {
+    if (
+      confirm(
+        `Close ${pos.asset} ${pos.side} @ $${formatPrice(exitPrice)}?\nPNL: ${formatUsd(pnl, { signed: true })}`
+      )
+    ) {
       await close(pos.id, exitPrice, pnl);
     }
   }
@@ -24,7 +34,7 @@ export function OpenPositions() {
   async function handleCloseAll() {
     if (!confirm(`Panic close all ${positions.length} positions?`)) return;
     for (const pos of positions) {
-      const exitPrice = pos.asset.startsWith("BTC") ? currentPrice : pos.entry;
+      const exitPrice = getExitPrice(pos);
       const pnl =
         pos.side === "LONG"
           ? (exitPrice - pos.entry) * pos.size
@@ -77,6 +87,7 @@ export function OpenPositions() {
                   key={pos.id}
                   pos={pos}
                   currentPrice={currentPrice}
+                  currentSymbol={currentSymbol}
                   onClose={() => handleClose(pos)}
                   onDelete={() => remove(pos.id)}
                 />
@@ -92,16 +103,18 @@ export function OpenPositions() {
 function PositionRow({
   pos,
   currentPrice,
+  currentSymbol,
   onClose,
   onDelete,
 }: {
   pos: Position;
   currentPrice: number;
+  currentSymbol: string;
   onClose: () => void;
   onDelete: () => void;
 }) {
-  // Live unrealized PNL for BTC positions, static for others
-  const useLive = pos.asset.startsWith("BTC") && currentPrice > 0;
+  // Live unrealized PNL when position asset matches current selected pair
+  const useLive = pos.asset === currentSymbol && currentPrice > 0;
   const referencePrice = useLive ? currentPrice : pos.entry;
   const unrealizedPnl =
     pos.side === "LONG"

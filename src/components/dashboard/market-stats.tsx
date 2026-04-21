@@ -2,9 +2,14 @@
 
 import { Activity } from "lucide-react";
 import { usePrice } from "@/components/providers/price-provider";
+import { useFundingRate } from "@/hooks/use-funding-rate";
 
 export function MarketStats() {
-  const { price, high24h, low24h, volume24h, priceChangePercent24h } = usePrice();
+  const { high24h, low24h, volume24h, priceChangePercent24h, symbol } =
+    usePrice();
+  const { fundingRate, loading: fundingLoading } = useFundingRate(symbol);
+
+  const fundingPct = fundingRate * 100;
 
   const stats = [
     {
@@ -14,18 +19,39 @@ export function MarketStats() {
     },
     {
       label: "24H HIGH",
-      value: high24h > 0 ? `$${high24h.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : "---",
+      value:
+        high24h > 0
+          ? `$${high24h.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+          : "---",
       color: "text-on-surface",
     },
     {
       label: "24H LOW",
-      value: low24h > 0 ? `$${low24h.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : "---",
+      value:
+        low24h > 0
+          ? `$${low24h.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+          : "---",
       color: "text-on-surface",
     },
     {
       label: "VOLUME 24H",
       value: volume24h > 0 ? `$${(volume24h / 1e9).toFixed(2)}B` : "---",
       color: "text-on-surface",
+    },
+    {
+      label: "FUNDING",
+      value: fundingLoading
+        ? "---"
+        : `${fundingPct >= 0 ? "+" : ""}${fundingPct.toFixed(4)}%`,
+      color:
+        !fundingLoading && fundingPct >= 0
+          ? "text-emerald-accent"
+          : "text-crimson",
+    },
+    {
+      label: "SYMBOL",
+      value: symbol,
+      color: "text-cyan",
     },
   ];
 

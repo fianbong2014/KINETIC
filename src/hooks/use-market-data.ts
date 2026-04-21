@@ -9,7 +9,7 @@ export interface TradeData {
   isBuyerMaker: boolean;
 }
 
-export interface PriceState {
+export interface MarketData {
   price: number;
   prevPrice: number;
   high24h: number;
@@ -25,29 +25,38 @@ export interface PriceState {
 const BINANCE_WS_URL = "wss://stream.binance.com:9443/ws";
 const BINANCE_REST_URL = "https://api.binance.com/api/v3";
 
-export function useBitcoinPrice() {
-  const [state, setState] = useState<PriceState>({
-    price: 0,
-    prevPrice: 0,
-    high24h: 0,
-    low24h: 0,
-    volume24h: 0,
-    priceChange24h: 0,
-    priceChangePercent24h: 0,
-    lastUpdate: Date.now(),
-    isConnected: false,
-    trades: [],
-  });
+const DEFAULT_STATE: MarketData = {
+  price: 0,
+  prevPrice: 0,
+  high24h: 0,
+  low24h: 0,
+  volume24h: 0,
+  priceChange24h: 0,
+  priceChangePercent24h: 0,
+  lastUpdate: Date.now(),
+  isConnected: false,
+  trades: [],
+};
+
+/**
+ * Subscribes to Binance trade + ticker streams for a given symbol.
+ * Automatically reconnects after 3 seconds on connection loss and
+ * resets state when the symbol changes.
+ */
+export function useMarketData(symbol: string): MarketData {
+  const [state, setState] = useState<MarketData>(DEFAULT_STATE);
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const tradesRef = useRef<TradeData[]>([]);
+  const symbolRef = useRef(symbol);
 
-  // Fetch 24h ticker data on mount
-  const fetch24hTicker = useCallback(async () => {
+  const fetch24hTicker = useCallback(async (sym: string) => {
     try {
-      const res = await fetch(`${BINANCE_REST_URL}/ticker/24hr?symbol=BTCUSDT`);
+      const res = await fetch(`${BINANCE_REST_URL}/ticker/24hr?symbol=${sym}`);
       const data = await res.json();
+      // Only update if symbol hasn't changed during fetch
+      if (symbolRef.current !== sym) return;
       setState((prev) => ({
         ...prev,
         price: parseFloat(data.lastPrice),
@@ -57,23 +66,25 @@ export function useBitcoinPrice() {
         priceChange24h: parseFloat(data.priceChange),
         priceChangePercent24h: parseFloat(data.priceChangePercent),
       }));
-    } catch (err) {
-      console.error("Failed to fetch 24h ticker:", err);
+    } catch {
+      // ignore
     }
   }, []);
 
-  const connect = useCallback(() => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) return;
-
+  const connect = useCallback((sym: string) => {
+    const lower = sym.toLowerCase();
     const ws = new WebSocket(
-      `${BINANCE_WS_URL}/btcusdt@trade/btcusdt@ticker`
+      `${BINANCE_WS_URL}/${lower}@trade/${lower}@ticker`
     );
 
     ws.onopen = () => {
-      setState((prev) => ({ ...prev, isConnected: true }));
+      if (symbolRef.current === sym) {
+        setState((prev) => ({ ...prev, isConnected: true }));
+      }
     };
 
     ws.onmessage = (event) => {
+      if (symbolRef.current !== sym) return;
       try {
         const data = JSON.parse(event.data);
 
@@ -106,16 +117,16 @@ export function useBitcoinPrice() {
             priceChangePercent24h: parseFloat(data.P),
           }));
         }
-      } catch (err) {
+      } catch {
         // ignore parse errors
       }
     };
 
     ws.onclose = () => {
+      if (symbolRef.current !== sym) return;
       setState((prev) => ({ ...prev, isConnected: false }));
-      // Auto reconnect after 3s
       reconnectTimeoutRef.current = setTimeout(() => {
-        connect();
+        if (symbolRef.current === sym) connect(sym);
       }, 3000);
     };
 
@@ -127,8 +138,12 @@ export function useBitcoinPrice() {
   }, []);
 
   useEffect(() => {
-    fetch24hTicker();
-    connect();
+    symbolRef.current = symbol;
+    tradesRef.current = [];
+    setState(DEFAULT_STATE);
+
+    fetch24hTicker(symbol);
+    connect(symbol);
 
     return () => {
       if (reconnectTimeoutRef.current) {
@@ -136,9 +151,10 @@ export function useBitcoinPrice() {
       }
       if (wsRef.current) {
         wsRef.current.close();
+        wsRef.current = null;
       }
     };
-  }, [connect, fetch24hTicker]);
+  }, [symbol, connect, fetch24hTicker]);
 
   return state;
 }

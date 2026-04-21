@@ -3,20 +3,25 @@
 import { usePrice } from "@/components/providers/price-provider";
 
 export function RecentTrades() {
-  const { trades } = usePrice();
+  const { trades, pair } = usePrice();
 
   if (trades.length === 0) return null;
 
   return (
     <div className="bg-surface-container-low p-3 lg:p-4">
-      <h3 className="text-xs font-medium text-on-surface-variant tracking-wider uppercase mb-2">
-        Recent Trades (Live)
-      </h3>
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="text-xs font-medium text-on-surface-variant tracking-wider uppercase">
+          Recent Trades (Live)
+        </h3>
+        <span className="text-[9px] text-on-surface-variant font-bold tracking-wider">
+          {pair.display}
+        </span>
+      </div>
 
       <div className="grid grid-cols-4 text-[10px] text-on-surface-variant mb-1">
         <span>TIME</span>
         <span className="text-right">PRICE (USD)</span>
-        <span className="text-right">SIZE (BTC)</span>
+        <span className="text-right">SIZE ({pair.base})</span>
         <span className="text-right">SIDE</span>
       </div>
 

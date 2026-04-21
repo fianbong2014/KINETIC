@@ -7,7 +7,7 @@ import { formatPrice } from "@/lib/format";
 
 export function TradeExecution() {
   const { create } = usePositions();
-  const { price: btcPrice } = usePrice();
+  const { price: livePrice, symbol, pair } = usePrice();
 
   const [orderType, setOrderType] = useState<"MARKET" | "LIMIT">("MARKET");
   const [amount, setAmount] = useState("0.50");
@@ -29,7 +29,7 @@ export function TradeExecution() {
     const entryPrice =
       orderType === "LIMIT" && limitPrice
         ? parseFloat(limitPrice)
-        : btcPrice;
+        : livePrice;
 
     if (!entryPrice || entryPrice <= 0) {
       setMessage({
@@ -44,7 +44,7 @@ export function TradeExecution() {
     setSubmitting(true);
     try {
       await create({
-        asset: "BTCUSDT",
+        asset: symbol,
         side,
         size,
         entry: entryPrice,
@@ -52,7 +52,7 @@ export function TradeExecution() {
       });
       setMessage({
         type: "ok",
-        text: `${side} ${size} BTC @ $${formatPrice(entryPrice)}`,
+        text: `${side} ${size} ${pair.base} @ $${formatPrice(entryPrice)}`,
       });
       // Clear form
       setStopLoss("");
@@ -97,7 +97,7 @@ export function TradeExecution() {
       <div className="space-y-3">
         <div className="relative">
           <label className="absolute -top-2 left-2 px-1 bg-surface-container-high text-[8px] font-bold text-on-surface-variant uppercase">
-            Amount (BTC)
+            Amount ({pair.base})
           </label>
           <input
             type="number"
@@ -118,7 +118,7 @@ export function TradeExecution() {
               step="any"
               value={limitPrice}
               onChange={(e) => setLimitPrice(e.target.value)}
-              placeholder={btcPrice ? formatPrice(btcPrice) : "Market"}
+              placeholder={livePrice ? formatPrice(livePrice) : "Market"}
               className="w-full bg-surface-container-lowest border-0 text-sm font-heading font-bold py-3 px-3 text-on-surface focus:ring-1 focus:ring-cyan focus:bg-surface-bright transition-all placeholder:text-on-surface-variant/50"
             />
           </div>
@@ -172,7 +172,7 @@ export function TradeExecution() {
 
       {/* Fee / Available */}
       <div className="pt-2 flex justify-between text-[10px] font-bold uppercase text-on-surface-variant">
-        <span>Market: ${btcPrice ? formatPrice(btcPrice) : "—"}</span>
+        <span>Market: ${livePrice ? formatPrice(livePrice) : "—"}</span>
         <span>Paper Trading</span>
       </div>
     </section>

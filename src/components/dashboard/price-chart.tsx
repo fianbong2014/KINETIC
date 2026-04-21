@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { usePrice } from "@/components/providers/price-provider";
+import { useFundingRate } from "@/hooks/use-funding-rate";
 import {
   Camera,
   Maximize2,
@@ -35,11 +36,12 @@ const TIMEFRAMES = [
 const BINANCE_KLINES_URL = "https://api.binance.com/api/v3/klines";
 
 async function fetchKlines(
+  symbol: string,
   interval: string,
   limit: number
 ): Promise<{ candles: CandleData[]; volumes: VolumeData[] }> {
   const res = await fetch(
-    `${BINANCE_KLINES_URL}?symbol=BTCUSDT&interval=${interval}&limit=${limit}`
+    `${BINANCE_KLINES_URL}?symbol=${symbol}&interval=${interval}&limit=${limit}`
   );
   const data = await res.json();
 
@@ -67,7 +69,8 @@ async function fetchKlines(
 
 export function PriceChart() {
   const [activeTimeframe, setActiveTimeframe] = useState("1H");
-  const { price, priceChangePercent24h, high24h, low24h } = usePrice();
+  const { price, priceChangePercent24h, high24h, low24h, symbol, pair } =
+    usePrice();
 
   const chartContainerRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -81,9 +84,9 @@ export function PriceChart() {
 
   // Load kline data — defined before useEffect so it can be called during init
   const loadData = useCallback(
-    async (interval: string, limit: number) => {
+    async (sym: string, interval: string, limit: number) => {
       try {
-        const { candles, volumes } = await fetchKlines(interval, limit);
+        const { candles, volumes } = await fetchKlines(sym, interval, limit);
         if (candleSeriesRef.current && volumeSeriesRef.current) {
           candleSeriesRef.current.setData(candles as any);
           volumeSeriesRef.current.setData(volumes as any);
@@ -171,7 +174,7 @@ export function PriceChart() {
       volumeSeriesRef.current = volumeSeries;
 
       // Load initial data
-      loadData("1h", 120);
+      loadData(symbol, "1h", 120);
 
       // Handle resize
       ro = new ResizeObserver((entries) => {
@@ -201,10 +204,18 @@ export function PriceChart() {
   const handleTimeframeChange = useCallback(
     (tf: (typeof TIMEFRAMES)[number]) => {
       setActiveTimeframe(tf.label);
-      loadData(tf.interval, tf.limit);
+      loadData(symbol, tf.interval, tf.limit);
     },
-    [loadData]
+    [loadData, symbol]
   );
+
+  // Reload data when symbol changes
+  useEffect(() => {
+    if (!candleSeriesRef.current) return;
+    const tf = TIMEFRAMES.find((t) => t.label === activeTimeframe);
+    if (!tf) return;
+    loadData(symbol, tf.interval, tf.limit);
+  }, [symbol, activeTimeframe, loadData]);
 
   // Update last candle with live price
   useEffect(() => {
@@ -275,7 +286,7 @@ export function PriceChart() {
         <div className="flex items-center gap-4">
           <div className="flex flex-col">
             <span className="text-lg font-heading font-black text-on-surface">
-              BTC / USDT
+              {pair.base} / {pair.quote}
             </span>
             <span className="text-[10px] text-on-surface-variant font-bold uppercase tracking-widest">
               Binance Spot
@@ -361,15 +372,48 @@ export function PriceChart() {
             <ArrowUpRight size={13} />
           </button>
         </div>
-        <div className="flex items-center gap-3 text-[10px] font-mono tabular-nums">
-          <span className="text-on-surface-variant">
-            ETH <span className="text-on-surface">$3,421.50</span>
-          </span>
-          <span className="text-on-surface-variant">
-            SOL <span className="text-on-surface">$142.80</span>
-          </span>
-        </div>
+        <FundingRateInline symbol={symbol} />
       </div>
+    </div>
+  );
+}
+
+function FundingRateInline({ symbol }: { symbol: string }) {
+  const { fundingRate, nextFundingTime, loading } = useFundingRate(symbol);
+
+  if (loading) {
+    return (
+      <span className="text-[10px] font-mono tabular-nums text-on-surface-variant">
+        FUNDING: —
+      </span>
+    );
+  }
+
+  const pct = fundingRate * 100;
+  const isPositive = pct >= 0;
+  const timeLeftMs = nextFundingTime - Date.now();
+  const hoursLeft = Math.max(0, Math.floor(timeLeftMs / 3600000));
+  const minutesLeft = Math.max(0, Math.floor((timeLeftMs % 3600000) / 60000));
+
+  return (
+    <div className="flex items-center gap-3 text-[10px] font-mono tabular-nums">
+      <span className="text-on-surface-variant">
+        FUNDING:{" "}
+        <span
+          className={isPositive ? "text-emerald-accent" : "text-crimson"}
+        >
+          {isPositive ? "+" : ""}
+          {pct.toFixed(4)}%
+        </span>
+      </span>
+      {timeLeftMs > 0 && (
+        <span className="text-on-surface-variant hidden sm:inline">
+          NEXT:{" "}
+          <span className="text-on-surface">
+            {hoursLeft}h {minutesLeft}m
+          </span>
+        </span>
+      )}
     </div>
   );
 }
