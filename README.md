@@ -233,12 +233,12 @@ prisma/
 - [x] **Route Protection** — `proxy.ts` redirect unauthenticated users to /login
 - [x] **Login/Register Pages** — Terminal-styled auth pages with auto sign-in after register
 
-### Phase 2: Live Trading Data
-- [ ] **Live Order Book** — เชื่อม Binance `btcusdt@depth` WebSocket stream แทน mock data
-- [ ] **Multi-pair Support** — รองรับ ETH/USD, SOL/USD และ pairs อื่น ๆ (ปัจจุบัน BTC only)
-- [ ] **Candlestick Chart** — เปลี่ยนจาก area chart เป็น OHLC/Candlestick พร้อม volume bars
-- [ ] **Historical Data** — ดึง klines จาก Binance REST API สำหรับ chart timeframes ต่าง ๆ
-- [ ] **Funding Rate** — แสดง perpetual futures funding rate แบบ real-time
+### Phase 2: Live Trading Data ✅
+- [x] **Live Order Book** — Binance partial depth stream (`@depth20@100ms`) with cumulative depth bars
+- [x] **Multi-pair Support** — BTC / ETH / SOL / BNB / XRP with dynamic WebSocket subscribe/unsubscribe
+- [x] **Candlestick Chart** — OHLC candles + volume histogram (lightweight-charts), reacts to pair + timeframe
+- [x] **Historical Data** — klines from Binance REST API for all timeframes (1M / 15M / 1H / 4H / 1D)
+- [x] **Funding Rate** — perpetual futures funding rate + next funding countdown
 
 ### Phase 3: Trading Engine
 - [ ] **Order Execution** — เชื่อมกับ exchange API (Binance/Bybit) สำหรับ place orders จริง
