@@ -1,8 +1,15 @@
 "use client";
 
+import { useSession, signOut } from "next-auth/react";
 import { User, LogOut, Clock } from "lucide-react";
 
 export function AccountSettings() {
+  const { data: session } = useSession();
+
+  const userName = session?.user?.name || "Kinetic User";
+  const userEmail = session?.user?.email || "kinetic@terminal.io";
+  const userInitial = userName[0]?.toUpperCase() || "K";
+
   return (
     <section className="bg-surface-container-low p-5 space-y-6 border border-outline-variant/10">
       <div className="flex items-center gap-2">
@@ -16,14 +23,14 @@ export function AccountSettings() {
         {/* Profile */}
         <div className="flex items-center gap-4">
           <div className="w-12 h-12 bg-surface-container-high flex items-center justify-center">
-            <span className="text-lg font-heading font-bold text-cyan">K</span>
+            <span className="text-lg font-heading font-bold text-cyan">{userInitial}</span>
           </div>
           <div className="flex-1">
             <p className="text-sm font-heading font-bold text-on-surface">
-              Kinetic User
+              {userName}
             </p>
             <p className="text-[10px] text-on-surface-variant tracking-wider">
-              kinetic@terminal.io
+              {userEmail}
             </p>
           </div>
         </div>
@@ -62,7 +69,10 @@ export function AccountSettings() {
         </div>
 
         {/* Sign out */}
-        <button className="w-full flex items-center justify-center gap-2 py-2.5 bg-surface-container text-on-surface-variant hover:text-crimson hover:bg-surface-container-high transition-colors text-xs font-bold uppercase tracking-widest">
+        <button
+          onClick={() => signOut({ redirectTo: "/login" })}
+          className="w-full flex items-center justify-center gap-2 py-2.5 bg-surface-container text-on-surface-variant hover:text-crimson hover:bg-surface-container-high transition-colors text-xs font-bold uppercase tracking-widest"
+        >
           <LogOut className="w-3.5 h-3.5" />
           Sign Out
         </button>

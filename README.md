@@ -23,11 +23,21 @@ KINETIC เป็น trading terminal ที่ออกแบบมาในส
 
 ## Features (สถานะปัจจุบัน)
 
-### Live (เชื่อมต่อ API จริง)
+### Core Infrastructure
+| Feature | รายละเอียด | Status |
+|---------|-----------|--------|
+| **Authentication** | Email/password login + registration ผ่าน NextAuth.js v5 (JWT) | ✅ Live |
+| **Database** | PostgreSQL (Neon) + Prisma ORM — User, Position, JournalEntry tables | ✅ Live |
+| **API Routes** | REST API สำหรับ positions, journal entries, user settings (CRUD) | ✅ Live |
+| **Route Protection** | Proxy redirect ไป /login เมื่อไม่มี session | ✅ Live |
+| **User Settings** | Default settings seed ตอน register, GET/PATCH API | ✅ Live |
+| **Home Block Menu** | หน้า landing พร้อม block menu สำหรับ navigate ไปแต่ละ section | ✅ Live |
+
+### Live Data (เชื่อมต่อ API จริง)
 | Feature | รายละเอียด | Data Source |
 |---------|-----------|-------------|
 | **Real-time BTC Price** | ราคา Bitcoin อัปเดตแบบ real-time ผ่าน WebSocket | Binance WebSocket API |
-| **Price Chart** | กราฟราคาสดที่อัปเดตทุก trade | Binance `btcusdt@trade` stream |
+| **Price Chart** | กราฟราคาสดที่อัปเดตทุก trade (Candlestick) | Binance `btcusdt@trade` stream |
 | **24H Market Stats** | High/Low/Volume/Change% | Binance REST + `btcusdt@ticker` stream |
 | **Recent Trades Feed** | แสดง 10 trades ล่าสุดแบบ live พร้อม animation | Binance `btcusdt@trade` stream |
 | **Connection Status** | แสดงสถานะ WebSocket + auto reconnect 3 วินาที | Internal state |
@@ -37,7 +47,7 @@ KINETIC เป็น trading terminal ที่ออกแบบมาในส
 |---------|-----------|
 | **Order Book** | แสดง depth visualization พร้อม bid/ask spread |
 | **Quick Trade Panel** | Market/Limit order form พร้อม Buy/Sell toggle |
-| **Signal Analysis** | Zone Analysis, Technical Analysis, Energy Detection (3 tabs) |
+| **Signal Analysis** | Zone Analysis, Technical Analysis, Energy Detection (responsive) |
 | **Trade Plan** | Entry/Stop Loss/Take Profit พร้อม Risk:Reward ratio |
 | **Risk Command Center** | Portfolio Health donut (72%), Risk Calculator, Active Exposure |
 | **Trade Journal** | Stats, Equity Curve, Performance by Pair/Strategy, Trade entries |
@@ -59,10 +69,13 @@ KINETIC เป็น trading terminal ที่ออกแบบมาในส
 | UI Library | React 19.2 |
 | Styling | Tailwind CSS v4 (PostCSS plugin) |
 | Components | shadcn/ui (base-ui) |
-| Charts | Recharts 3.8 |
+| Charts | Lightweight Charts 5.1 + Recharts 3.8 |
 | Icons | Lucide React |
 | Fonts | Space Grotesk (headings), Inter (body), Roboto Mono (numbers) |
+| Database | PostgreSQL (Neon) + Prisma ORM |
+| Authentication | NextAuth.js v5 (credentials + JWT) |
 | Real-time | Binance WebSocket API (free, no auth) |
+| Deployment | Vercel |
 
 ---
 
@@ -72,17 +85,32 @@ KINETIC เป็น trading terminal ที่ออกแบบมาในส
 # Install dependencies
 npm install
 
-# Start development server
+# Setup environment variables
+cp .env.example .env
+# แก้ไข DATABASE_URL ใน .env ให้ชี้ไปยัง PostgreSQL instance
+
+# Run database migration
+npx prisma migrate dev
+
+# Start development server (port 3300)
 npm run dev
 
 # Production build
 npm run build
 
-# Start production server
+# Start production server (port 3301)
 npm start
 ```
 
-เปิด [http://localhost:3000](http://localhost:3000) ใน browser
+เปิด [http://localhost:3300](http://localhost:3300) ใน browser
+
+### Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `DATABASE_URL` | PostgreSQL connection string (e.g. Neon) |
+| `AUTH_SECRET` | NextAuth.js secret key (`openssl rand -base64 32`) |
+| `AUTH_URL` | Application URL (`http://localhost:3300` for dev) |
 
 ---
 
@@ -91,13 +119,26 @@ npm start
 ```
 src/
 ├── app/
-│   ├── layout.tsx              # Root layout (providers, sidebar, topbar, mobile nav)
+│   ├── layout.tsx              # Root layout (fonts + SessionProvider)
 │   ├── globals.css             # Design system tokens + custom utilities
-│   ├── page.tsx                # Redirect → /dashboard
-│   ├── dashboard/page.tsx      # BTC Main Dashboard
-│   ├── signals/page.tsx        # Signal Analysis Detail
-│   ├── risk/page.tsx           # Risk Command Center
-│   └── journal/page.tsx        # Trade Journal & Analytics
+│   ├── (app)/                  # Authenticated route group (with sidebar, topbar)
+│   │   ├── layout.tsx          # App shell (Sidebar, Topbar, PriceProvider, StatusBar)
+│   │   ├── page.tsx            # Home — block menu navigation
+│   │   ├── dashboard/          # BTC Main Dashboard
+│   │   ├── signals/            # Signal Analysis Detail
+│   │   ├── risk/               # Risk Command Center
+│   │   ├── journal/            # Trade Journal & Analytics
+│   │   └── settings/           # Settings Dashboard
+│   ├── (auth)/                 # Public route group (minimal layout)
+│   │   ├── layout.tsx          # Centered auth layout
+│   │   ├── login/              # Login page
+│   │   └── register/           # Registration page
+│   └── api/
+│       ├── auth/[...nextauth]/ # NextAuth.js catch-all
+│       ├── auth/register/      # User registration endpoint
+│       ├── positions/          # Positions CRUD
+│       ├── journal/            # Journal entries CRUD
+│       └── settings/           # User settings GET/PATCH
 │
 ├── components/
 │   ├── layout/                 # Sidebar, Topbar, MobileNav, StatusBar
@@ -105,14 +146,27 @@ src/
 │   ├── signals/                # SignalHeader, SignalDetails, TradePlan, SignalNarrative
 │   ├── risk/                   # PortfolioHealth, RiskCalculator, ActiveExposure, etc.
 │   ├── journal/                # JournalStats, EquityCurve, JournalEntries, etc.
-│   ├── providers/              # PriceProvider (React Context)
+│   ├── settings/               # Account, API, Trading, Risk, Notification, Display panels
+│   ├── providers/              # PriceProvider, SessionProvider
 │   └── ui/                     # shadcn components + AnimatedPrice
 │
 ├── hooks/
 │   └── use-bitcoin-price.ts    # Binance WebSocket + REST hook
 │
-└── lib/
-    └── utils.ts                # cn() utility
+├── lib/
+│   ├── utils.ts                # cn() utility
+│   ├── db.ts                   # Prisma client singleton
+│   ├── auth.ts                 # NextAuth.js v5 configuration
+│   ├── auth-helpers.ts         # getAuthenticatedUser() helper
+│   └── default-settings.ts     # Default user settings seed
+│
+├── types/
+│   └── next-auth.d.ts          # Session type extension
+│
+└── proxy.ts                    # Route protection (redirect to /login)
+
+prisma/
+└── schema.prisma               # Database schema (User, Position, JournalEntry)
 ```
 
 ---
@@ -145,6 +199,18 @@ src/
 
 ## API Integration
 
+### Internal API Routes
+
+| Route | Methods | Description |
+|-------|---------|-------------|
+| `/api/auth/[...nextauth]` | GET, POST | NextAuth.js authentication |
+| `/api/auth/register` | POST | User registration (bcrypt hash + default settings) |
+| `/api/positions` | GET, POST | List/create trading positions |
+| `/api/positions/[id]` | PATCH, DELETE | Update/delete position |
+| `/api/journal` | GET, POST | List/create journal entries (paginated) |
+| `/api/journal/[id]` | PATCH, DELETE | Update/delete journal entry |
+| `/api/settings` | GET, PATCH | Get/merge user settings (shallow merge) |
+
 ### Binance (Free, No Auth Required)
 
 **WebSocket** — `wss://stream.binance.com:9443/ws/btcusdt@trade/btcusdt@ticker`
@@ -159,11 +225,13 @@ src/
 
 ## Roadmap
 
-### Phase 1: Core Infrastructure
-- [ ] **Backend API** — สร้าง API routes (`/api/`) สำหรับ trade execution, portfolio management
-- [ ] **Database** — เพิ่ม PostgreSQL + Prisma ORM สำหรับเก็บ positions, journal entries, user settings
-- [ ] **Authentication** — ระบบ login/register (NextAuth.js หรือ Clerk)
-- [ ] **Environment Config** — `.env` สำหรับ API keys, database URL, WebSocket endpoints
+### Phase 1: Core Infrastructure ✅
+- [x] **Backend API** — API routes สำหรับ positions CRUD, journal CRUD, user settings
+- [x] **Database** — PostgreSQL (Neon, Singapore) + Prisma ORM (User, Position, JournalEntry)
+- [x] **Authentication** — NextAuth.js v5 credentials (email/password + JWT sessions)
+- [x] **Environment Config** — `.env` สำหรับ DATABASE_URL, AUTH_SECRET, AUTH_URL
+- [x] **Route Protection** — `proxy.ts` redirect unauthenticated users to /login
+- [x] **Login/Register Pages** — Terminal-styled auth pages with auto sign-in after register
 
 ### Phase 2: Live Trading Data
 - [ ] **Live Order Book** — เชื่อม Binance `btcusdt@depth` WebSocket stream แทน mock data
@@ -182,7 +250,7 @@ src/
 ### Phase 4: Signal & Analytics
 - [ ] **Signal Engine** — ระบบสร้าง signal อัตโนมัติจาก technical indicators (RSI, MACD, EMA crossover)
 - [ ] **Backtesting** — ทดสอบ strategy กับ historical data
-- [ ] **Journal Persistence** — บันทึก trade journal ลง database พร้อม CRUD operations
+- [x] **Journal Persistence** — บันทึก trade journal ลง database พร้อม CRUD operations (API ready)
 - [ ] **Equity Curve (Live)** — คำนวณจาก trade history จริง
 - [ ] **Performance Analytics** — Win rate, Sharpe ratio, max drawdown คำนวณแบบ real-time
 - [ ] **Alert System** — Push notifications เมื่อราคาถึง target หรือ signal trigger
@@ -196,7 +264,7 @@ src/
 - [ ] **i18n** — รองรับภาษาไทยและภาษาอื่น
 - [ ] **Rate Limiting** — จัดการ API rate limits ของ Binance
 - [ ] **Testing** — Unit tests (Vitest) + E2E tests (Playwright)
-- [ ] **CI/CD** — GitHub Actions pipeline + Vercel deployment
+- [x] **Vercel Deployment** — Auto-deploy on push via GitHub integration
 - [ ] **Monitoring** — Error tracking (Sentry) + analytics
 
 ### Phase 6: Advanced Features
