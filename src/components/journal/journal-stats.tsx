@@ -1,38 +1,70 @@
 "use client";
 
-import { TrendingUp, TrendingDown, Target, Percent } from "lucide-react";
-
-const stats = [
-  {
-    label: "TOTAL TRADES",
-    value: "142",
-    icon: Target,
-    sub: "Last 30 days",
-  },
-  {
-    label: "WIN RATE",
-    value: "68.3%",
-    icon: Percent,
-    sub: "97 wins / 45 losses",
-    color: "text-emerald-accent",
-  },
-  {
-    label: "TOTAL PNL",
-    value: "+$34,820.45",
-    icon: TrendingUp,
-    sub: "Realized P&L",
-    color: "text-emerald-accent",
-  },
-  {
-    label: "AVG RRR",
-    value: "1 : 2.8",
-    icon: TrendingUp,
-    sub: "Risk/Reward Ratio",
-    color: "text-cyan",
-  },
-];
+import { TrendingUp, Target, Percent } from "lucide-react";
+import { useJournal } from "@/hooks/use-journal";
+import { formatUsd } from "@/lib/format";
 
 export function JournalStats() {
+  const { entries, loading } = useJournal();
+
+  // Calculate stats from real entries
+  const totalTrades = entries.length;
+  const wins = entries.filter((e) => e.pnl > 0);
+  const losses = entries.filter((e) => e.pnl < 0);
+  const winRate =
+    totalTrades > 0 ? (wins.length / totalTrades) * 100 : 0;
+  const totalPnl = entries.reduce((sum, e) => sum + e.pnl, 0);
+
+  const avgRrr =
+    entries.length > 0
+      ? (() => {
+          // Parse "1:2.8" -> 2.8 and average
+          const ratios = entries
+            .map((e) => {
+              const match = e.rrr.match(/1:([\d.]+)/);
+              return match ? parseFloat(match[1]) : null;
+            })
+            .filter((n): n is number => n !== null);
+          if (ratios.length === 0) return "—";
+          const avg = ratios.reduce((a, b) => a + b, 0) / ratios.length;
+          return `1 : ${avg.toFixed(1)}`;
+        })()
+      : "—";
+
+  const stats = [
+    {
+      label: "TOTAL TRADES",
+      value: loading ? "—" : String(totalTrades),
+      icon: Target,
+      sub: "All time",
+    },
+    {
+      label: "WIN RATE",
+      value: loading ? "—" : `${winRate.toFixed(1)}%`,
+      icon: Percent,
+      sub: `${wins.length} wins / ${losses.length} losses`,
+      color:
+        winRate >= 50 ? "text-emerald-accent" : "text-crimson",
+    },
+    {
+      label: "TOTAL PNL",
+      value: loading
+        ? "—"
+        : formatUsd(totalPnl, { signed: true }),
+      icon: TrendingUp,
+      sub: "Realized P&L",
+      color:
+        totalPnl >= 0 ? "text-emerald-accent" : "text-crimson",
+    },
+    {
+      label: "AVG RRR",
+      value: loading ? "—" : avgRrr,
+      icon: TrendingUp,
+      sub: "Risk/Reward Ratio",
+      color: "text-cyan",
+    },
+  ];
+
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-1">
       {stats.map((stat) => (
