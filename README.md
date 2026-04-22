@@ -258,16 +258,17 @@ prisma/
 - [x] **Alert System** — Browser notifications on SL/TP trigger, gated by user alert preferences
 - [ ] **Backtesting** — deferred to Phase 6 (requires historical kline replay + strategy harness)
 
-### Phase 5: Production Ready
-- [ ] **Error Boundaries** — จัดการ error state ทุกหน้า (network failure, API errors)
-- [ ] **Loading States** — Skeleton loaders สำหรับทุก data component
+### Phase 5: Production Ready 🚧
+- [x] **Error Boundaries** — `error.tsx` at root + `(app)` group with styled retry panel
+- [x] **404 Page** — terminal-styled `not-found.tsx`
+- [x] **In-app Toasts** — ToastProvider wired into trade/close/register/SL-TP events
+- [x] **Mobile Optimization** — Dashboard/Risk/Settings/Topbar fully responsive; trade exec pinned on mobile
+- [x] **Reusable Skeleton component** — ready for incremental loading-state rollout
+- [x] **Vercel Deployment** — Auto-deploy on push via GitHub integration
 - [ ] **PWA Support** — Offline capability + installable app
-- [ ] **Mobile Optimization** — Touch gestures สำหรับ chart interaction
-- [ ] **Dark/Light Mode** — Toggle theme (ปัจจุบัน dark only)
 - [ ] **i18n** — รองรับภาษาไทยและภาษาอื่น
 - [ ] **Rate Limiting** — จัดการ API rate limits ของ Binance
 - [ ] **Testing** — Unit tests (Vitest) + E2E tests (Playwright)
-- [x] **Vercel Deployment** — Auto-deploy on push via GitHub integration
 - [ ] **Monitoring** — Error tracking (Sentry) + analytics
 
 ### Phase 6: Advanced Features
