@@ -250,13 +250,13 @@ prisma/
 - [x] **Balance-aware Trade Form** — blocks orders exceeding balance, validates SL/TP direction
 - [ ] **Real Exchange Order Execution** — connect to Binance/Bybit for live trading (deferred — skip for MVP safety)
 
-### Phase 4: Signal & Analytics
-- [ ] **Signal Engine** — ระบบสร้าง signal อัตโนมัติจาก technical indicators (RSI, MACD, EMA crossover)
-- [ ] **Backtesting** — ทดสอบ strategy กับ historical data
-- [x] **Journal Persistence** — บันทึก trade journal ลง database พร้อม CRUD operations (API ready)
-- [ ] **Equity Curve (Live)** — คำนวณจาก trade history จริง
-- [ ] **Performance Analytics** — Win rate, Sharpe ratio, max drawdown คำนวณแบบ real-time
-- [ ] **Alert System** — Push notifications เมื่อราคาถึง target หรือ signal trigger
+### Phase 4: Signal & Analytics ✅
+- [x] **Signal Engine** — Pure-JS indicators (RSI, MACD, EMA/SMA, divergence, volume spike, zones) running on live klines
+- [x] **Journal Persistence** — บันทึก trade journal ลง database พร้อม CRUD operations
+- [x] **Equity Curve (Live)** — real journal entries cumulative from starting balance
+- [x] **Performance Analytics** — Win rate, profit factor, expectancy, max drawdown, Sharpe-like, avg R:R
+- [x] **Alert System** — Browser notifications on SL/TP trigger, gated by user alert preferences
+- [ ] **Backtesting** — deferred to Phase 6 (requires historical kline replay + strategy harness)
 
 ### Phase 5: Production Ready
 - [ ] **Error Boundaries** — จัดการ error state ทุกหน้า (network failure, API errors)
