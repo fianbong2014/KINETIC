@@ -1,10 +1,20 @@
 "use client";
 
 import { useSession, signOut } from "next-auth/react";
-import { User, LogOut, Clock } from "lucide-react";
+import { User, LogOut, Clock, DollarSign } from "lucide-react";
+import { useAccount } from "@/hooks/use-account";
+import { formatUsd } from "@/lib/format";
 
 export function AccountSettings() {
   const { data: session } = useSession();
+  const {
+    balance,
+    startingBalance,
+    equity,
+    realizedPnl,
+    totalClosedTrades,
+    loading,
+  } = useAccount();
 
   const userName = session?.user?.name || "Kinetic User";
   const userEmail = session?.user?.email || "kinetic@terminal.io";
@@ -33,6 +43,47 @@ export function AccountSettings() {
               {userEmail}
             </p>
           </div>
+        </div>
+
+        {/* Paper Trading Account */}
+        <div className="bg-surface-container p-3 space-y-2">
+          <div className="flex items-center gap-2 mb-2">
+            <DollarSign className="w-3.5 h-3.5 text-cyan" />
+            <span className="text-[10px] font-bold uppercase tracking-tighter text-on-surface-variant">
+              Paper Trading Account
+            </span>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <Metric
+              label="Balance"
+              value={loading ? "—" : formatUsd(balance)}
+              accent="text-on-surface"
+            />
+            <Metric
+              label="Equity"
+              value={loading ? "—" : formatUsd(equity)}
+              accent="text-on-surface"
+            />
+            <Metric
+              label="Starting"
+              value={loading ? "—" : formatUsd(startingBalance)}
+              accent="text-on-surface-variant"
+            />
+            <Metric
+              label="Realized PNL"
+              value={
+                loading
+                  ? "—"
+                  : formatUsd(realizedPnl, { signed: true })
+              }
+              accent={
+                realizedPnl >= 0 ? "text-emerald-accent" : "text-crimson"
+              }
+            />
+          </div>
+          <p className="text-[9px] text-on-surface-variant tracking-wider pt-1">
+            {loading ? "" : `${totalClosedTrades} closed trades`}
+          </p>
         </div>
 
         {/* Session Timeout */}
@@ -78,6 +129,29 @@ export function AccountSettings() {
         </button>
       </div>
     </section>
+  );
+}
+
+function Metric({
+  label,
+  value,
+  accent,
+}: {
+  label: string;
+  value: string;
+  accent: string;
+}) {
+  return (
+    <div>
+      <span className="block text-[9px] text-on-surface-variant uppercase tracking-wider">
+        {label}
+      </span>
+      <span
+        className={`text-xs font-mono font-semibold tabular-nums ${accent}`}
+      >
+        {value}
+      </span>
+    </div>
   );
 }
 

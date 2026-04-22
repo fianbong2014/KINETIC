@@ -4,7 +4,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AnimatedPrice } from "@/components/ui/animated-price";
 import { usePrice } from "@/components/providers/price-provider";
+import { useAccount } from "@/hooks/use-account";
 import { PairSelector } from "@/components/layout/pair-selector";
+import { formatUsd } from "@/lib/format";
 import { Bell, Wallet } from "lucide-react";
 
 const navLinks = [
@@ -17,6 +19,7 @@ const navLinks = [
 export function Topbar() {
   const pathname = usePathname();
   const { price, priceChangePercent24h, isConnected, pair } = usePrice();
+  const { balance, todayPnl, loading: accountLoading } = useAccount();
 
   const changePercent = priceChangePercent24h
     ? `${priceChangePercent24h >= 0 ? "+" : ""}${priceChangePercent24h.toFixed(2)}%`
@@ -58,6 +61,25 @@ export function Topbar() {
 
         {/* Right: Price + Execute + Icons */}
         <div className="flex items-center gap-4">
+          {/* Paper balance */}
+          <div className="hidden md:flex flex-col items-end">
+            <span className="text-xs font-bold text-on-surface tabular-nums">
+              {accountLoading ? "—" : formatUsd(balance)}
+            </span>
+            <span
+              className={`text-[9px] tracking-widest uppercase font-bold ${
+                todayPnl > 0
+                  ? "text-emerald-accent"
+                  : todayPnl < 0
+                    ? "text-crimson"
+                    : "text-on-surface-variant"
+              }`}
+            >
+              TODAY {todayPnl >= 0 ? "+" : ""}
+              {todayPnl.toFixed(2)}
+            </span>
+          </div>
+
           {/* Pair selector */}
           <PairSelector />
 

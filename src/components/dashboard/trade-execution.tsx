@@ -2,21 +2,28 @@
 
 import { useState } from "react";
 import { usePositions } from "@/hooks/use-positions";
+import { useAccount, notifyAccountChanged } from "@/hooks/use-account";
+import { useSettings } from "@/hooks/use-settings";
 import { usePrice } from "@/components/providers/price-provider";
-import { formatPrice } from "@/lib/format";
+import { formatPrice, formatUsd } from "@/lib/format";
 
 export function TradeExecution() {
   const { create } = usePositions();
+  const { balance, loading: accountLoading } = useAccount();
+  const { settings } = useSettings();
   const { price: livePrice, symbol, pair } = usePrice();
 
   const [orderType, setOrderType] = useState<"MARKET" | "LIMIT">("MARKET");
-  const [amount, setAmount] = useState("0.50");
+  const [amount, setAmount] = useState("0.05");
   const [stopLoss, setStopLoss] = useState("");
+  const [takeProfit, setTakeProfit] = useState("");
   const [limitPrice, setLimitPrice] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<{ type: "ok" | "err"; text: string } | null>(
     null
   );
+
+  const confirmBeforeOpen = settings.trading?.confirmBeforeOpen ?? true;
 
   async function handleSubmit(side: "LONG" | "SHORT") {
     setMessage(null);
@@ -39,7 +46,49 @@ export function TradeExecution() {
       return;
     }
 
+    const notional = size * entryPrice;
+
+    if (notional > balance) {
+      setMessage({
+        type: "err",
+        text: `Exceeds balance ($${formatPrice(balance)})`,
+      });
+      return;
+    }
+
     const sl = stopLoss ? parseFloat(stopLoss) : undefined;
+    const tp = takeProfit ? parseFloat(takeProfit) : undefined;
+
+    // Validate SL/TP direction
+    if (sl !== undefined) {
+      if (side === "LONG" && sl >= entryPrice) {
+        setMessage({ type: "err", text: "SL must be below entry for LONG" });
+        return;
+      }
+      if (side === "SHORT" && sl <= entryPrice) {
+        setMessage({ type: "err", text: "SL must be above entry for SHORT" });
+        return;
+      }
+    }
+    if (tp !== undefined) {
+      if (side === "LONG" && tp <= entryPrice) {
+        setMessage({ type: "err", text: "TP must be above entry for LONG" });
+        return;
+      }
+      if (side === "SHORT" && tp >= entryPrice) {
+        setMessage({ type: "err", text: "TP must be below entry for SHORT" });
+        return;
+      }
+    }
+
+    if (
+      confirmBeforeOpen &&
+      !confirm(
+        `${side} ${size} ${pair.base} @ $${formatPrice(entryPrice)}\nNotional: ${formatUsd(notional)}\n\nPlace order?`
+      )
+    ) {
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -49,13 +98,16 @@ export function TradeExecution() {
         size,
         entry: entryPrice,
         stopLoss: sl,
+        takeProfit: tp,
       });
+      notifyAccountChanged();
       setMessage({
         type: "ok",
         text: `${side} ${size} ${pair.base} @ $${formatPrice(entryPrice)}`,
       });
       // Clear form
       setStopLoss("");
+      setTakeProfit("");
       setLimitPrice("");
     } catch (e) {
       setMessage({
@@ -66,6 +118,9 @@ export function TradeExecution() {
       setSubmitting(false);
     }
   }
+
+  const notional =
+    parseFloat(amount) && livePrice ? parseFloat(amount) * livePrice : 0;
 
   return (
     <section className="bg-surface-container-high p-5 space-y-4">
@@ -124,18 +179,33 @@ export function TradeExecution() {
           </div>
         )}
 
-        <div className="relative">
-          <label className="absolute -top-2 left-2 px-1 bg-surface-container-high text-[8px] font-bold text-on-surface-variant uppercase">
-            Stop Loss (optional)
-          </label>
-          <input
-            type="number"
-            step="any"
-            value={stopLoss}
-            onChange={(e) => setStopLoss(e.target.value)}
-            placeholder="No stop loss"
-            className="w-full bg-surface-container-lowest border-0 text-sm font-heading font-bold py-3 px-3 text-on-surface focus:ring-1 focus:ring-cyan focus:bg-surface-bright transition-all placeholder:text-on-surface-variant/50"
-          />
+        <div className="grid grid-cols-2 gap-3">
+          <div className="relative">
+            <label className="absolute -top-2 left-2 px-1 bg-surface-container-high text-[8px] font-bold text-on-surface-variant uppercase">
+              Stop Loss
+            </label>
+            <input
+              type="number"
+              step="any"
+              value={stopLoss}
+              onChange={(e) => setStopLoss(e.target.value)}
+              placeholder="—"
+              className="w-full bg-surface-container-lowest border-0 text-sm font-heading font-bold py-3 px-3 text-on-surface focus:ring-1 focus:ring-crimson focus:bg-surface-bright transition-all placeholder:text-on-surface-variant/50"
+            />
+          </div>
+          <div className="relative">
+            <label className="absolute -top-2 left-2 px-1 bg-surface-container-high text-[8px] font-bold text-on-surface-variant uppercase">
+              Take Profit
+            </label>
+            <input
+              type="number"
+              step="any"
+              value={takeProfit}
+              onChange={(e) => setTakeProfit(e.target.value)}
+              placeholder="—"
+              className="w-full bg-surface-container-lowest border-0 text-sm font-heading font-bold py-3 px-3 text-on-surface focus:ring-1 focus:ring-emerald-accent focus:bg-surface-bright transition-all placeholder:text-on-surface-variant/50"
+            />
+          </div>
         </div>
       </div>
 
@@ -170,11 +240,36 @@ export function TradeExecution() {
         </button>
       </div>
 
-      {/* Fee / Available */}
-      <div className="pt-2 flex justify-between text-[10px] font-bold uppercase text-on-surface-variant">
-        <span>Market: ${livePrice ? formatPrice(livePrice) : "—"}</span>
-        <span>Paper Trading</span>
+      {/* Balance / Notional */}
+      <div className="pt-2 grid grid-cols-2 gap-2 text-[10px] font-bold uppercase text-on-surface-variant">
+        <div className="flex flex-col">
+          <span>Market</span>
+          <span className="text-on-surface font-mono tabular-nums normal-case">
+            ${livePrice ? formatPrice(livePrice) : "—"}
+          </span>
+        </div>
+        <div className="flex flex-col text-right">
+          <span>Balance</span>
+          <span
+            className={`font-mono tabular-nums normal-case ${
+              notional > balance && !accountLoading
+                ? "text-crimson"
+                : "text-on-surface"
+            }`}
+          >
+            {accountLoading ? "—" : formatUsd(balance)}
+          </span>
+        </div>
       </div>
+
+      {notional > 0 && (
+        <div className="text-[10px] font-bold uppercase text-on-surface-variant text-center">
+          Notional:{" "}
+          <span className="text-on-surface font-mono tabular-nums normal-case">
+            {formatUsd(notional)}
+          </span>
+        </div>
+      )}
     </section>
   );
 }

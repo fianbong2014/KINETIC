@@ -4,10 +4,14 @@ import { OpenPositions } from "@/components/dashboard/open-positions";
 import { TradeExecution } from "@/components/dashboard/trade-execution";
 import { RiskControl } from "@/components/dashboard/risk-control";
 import { SignalLogic } from "@/components/dashboard/signal-logic";
+import { PositionMonitor } from "@/components/dashboard/position-monitor";
 
 export default function DashboardPage() {
   return (
     <div className="grid grid-cols-12 gap-6">
+      {/* Renderless: auto-closes positions when SL/TP is hit */}
+      <PositionMonitor />
+
       {/* Left Col: Risk & Analysis (3 cols, stacks on mobile) */}
       <div className="col-span-12 xl:col-span-3 flex flex-col gap-6">
         <RiskControl />

@@ -1,6 +1,7 @@
 "use client";
 
 import { usePositions, type Position } from "@/hooks/use-positions";
+import { notifyAccountChanged } from "@/hooks/use-account";
 import { usePrice } from "@/components/providers/price-provider";
 import { formatPrice, formatUsd, formatPct } from "@/lib/format";
 
@@ -28,6 +29,7 @@ export function OpenPositions() {
       )
     ) {
       await close(pos.id, exitPrice, pnl);
+      notifyAccountChanged();
     }
   }
 
@@ -41,6 +43,7 @@ export function OpenPositions() {
           : (pos.entry - exitPrice) * pos.size;
       await close(pos.id, exitPrice, pnl);
     }
+    notifyAccountChanged();
   }
 
   return (
