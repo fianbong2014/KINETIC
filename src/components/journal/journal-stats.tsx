@@ -1,73 +1,93 @@
 "use client";
 
-import { TrendingUp, Target, Percent } from "lucide-react";
+import {
+  TrendingUp,
+  Target,
+  Percent,
+  Activity,
+  TrendingDown,
+  Zap,
+} from "lucide-react";
 import { useJournal } from "@/hooks/use-journal";
+import { computeStats } from "@/lib/analytics";
 import { formatUsd } from "@/lib/format";
 
 export function JournalStats() {
   const { entries, loading } = useJournal();
+  const s = computeStats(entries);
 
-  // Calculate stats from real entries
-  const totalTrades = entries.length;
-  const wins = entries.filter((e) => e.pnl > 0);
-  const losses = entries.filter((e) => e.pnl < 0);
-  const winRate =
-    totalTrades > 0 ? (wins.length / totalTrades) * 100 : 0;
-  const totalPnl = entries.reduce((sum, e) => sum + e.pnl, 0);
-
-  const avgRrr =
-    entries.length > 0
-      ? (() => {
-          // Parse "1:2.8" -> 2.8 and average
-          const ratios = entries
-            .map((e) => {
-              const match = e.rrr.match(/1:([\d.]+)/);
-              return match ? parseFloat(match[1]) : null;
-            })
-            .filter((n): n is number => n !== null);
-          if (ratios.length === 0) return "—";
-          const avg = ratios.reduce((a, b) => a + b, 0) / ratios.length;
-          return `1 : ${avg.toFixed(1)}`;
-        })()
-      : "—";
-
-  const stats = [
+  const statGroups = [
     {
       label: "TOTAL TRADES",
-      value: loading ? "—" : String(totalTrades),
+      value: loading ? "—" : String(s.totalTrades),
       icon: Target,
-      sub: "All time",
+      sub: `${s.wins} wins / ${s.losses} losses`,
     },
     {
       label: "WIN RATE",
-      value: loading ? "—" : `${winRate.toFixed(1)}%`,
+      value: loading ? "—" : `${s.winRate.toFixed(1)}%`,
       icon: Percent,
-      sub: `${wins.length} wins / ${losses.length} losses`,
+      sub: `Expectancy ${formatUsd(s.expectancy, { signed: true })}`,
       color:
-        winRate >= 50 ? "text-emerald-accent" : "text-crimson",
+        s.winRate >= 50 ? "text-emerald-accent" : "text-crimson",
     },
     {
       label: "TOTAL PNL",
-      value: loading
-        ? "—"
-        : formatUsd(totalPnl, { signed: true }),
+      value: loading ? "—" : formatUsd(s.totalPnl, { signed: true }),
       icon: TrendingUp,
-      sub: "Realized P&L",
+      sub: `PF ${s.profitFactor === Infinity ? "∞" : s.profitFactor.toFixed(2)}`,
       color:
-        totalPnl >= 0 ? "text-emerald-accent" : "text-crimson",
+        s.totalPnl >= 0 ? "text-emerald-accent" : "text-crimson",
     },
     {
       label: "AVG RRR",
-      value: loading ? "—" : avgRrr,
+      value: loading ? "—" : s.avgRrr ? `1 : ${s.avgRrr.toFixed(2)}` : "—",
       icon: TrendingUp,
-      sub: "Risk/Reward Ratio",
+      sub: `Sharpe ${s.sharpe !== null ? s.sharpe.toFixed(2) : "—"}`,
       color: "text-cyan",
+    },
+    {
+      label: "BEST TRADE",
+      value: loading ? "—" : formatUsd(s.bestTrade, { signed: true }),
+      icon: Zap,
+      sub: `Avg win ${formatUsd(s.avgWin)}`,
+      color: "text-emerald-accent",
+    },
+    {
+      label: "WORST TRADE",
+      value: loading ? "—" : formatUsd(s.worstTrade, { signed: true }),
+      icon: TrendingDown,
+      sub: `Avg loss ${formatUsd(s.avgLoss)}`,
+      color: "text-crimson",
+    },
+    {
+      label: "MAX DRAWDOWN",
+      value: loading ? "—" : `${s.maxDrawdown.toFixed(2)}%`,
+      icon: Activity,
+      sub: "Peak to trough",
+      color: s.maxDrawdown < -10 ? "text-crimson" : "text-orange",
+    },
+    {
+      label: "PROFIT FACTOR",
+      value: loading
+        ? "—"
+        : s.profitFactor === Infinity
+          ? "∞"
+          : s.profitFactor.toFixed(2),
+      icon: Activity,
+      sub: `${formatUsd(s.grossProfit)} / ${formatUsd(s.grossLoss)}`,
+      color:
+        s.profitFactor >= 1.5
+          ? "text-emerald-accent"
+          : s.profitFactor >= 1
+            ? "text-cyan"
+            : "text-crimson",
     },
   ];
 
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-1">
-      {stats.map((stat) => (
+      {statGroups.map((stat) => (
         <div
           key={stat.label}
           className="bg-surface-container-low p-3 lg:p-4 flex flex-col gap-2"
@@ -85,7 +105,7 @@ export function JournalStats() {
           >
             {stat.value}
           </span>
-          <span className="text-[10px] text-on-surface-variant">
+          <span className="text-[10px] text-on-surface-variant truncate">
             {stat.sub}
           </span>
         </div>

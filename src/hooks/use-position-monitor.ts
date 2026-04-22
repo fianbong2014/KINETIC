@@ -3,7 +3,10 @@
 import { useEffect, useRef } from "react";
 import { usePositions } from "@/hooks/use-positions";
 import { notifyAccountChanged } from "@/hooks/use-account";
+import { useSettings } from "@/hooks/use-settings";
 import { usePrice } from "@/components/providers/price-provider";
+import { notify } from "@/lib/notifications";
+import { formatPrice, formatUsd } from "@/lib/format";
 
 /**
  * Client-side Stop Loss / Take Profit trigger monitor.
@@ -15,10 +18,16 @@ import { usePrice } from "@/components/providers/price-provider";
  */
 export function usePositionMonitor() {
   const { positions, close } = usePositions("active");
+  const { settings } = useSettings();
   const { price, symbol } = usePrice();
   // Guard so we don't fire multiple close requests for the same position
   // while a close is still in flight.
   const closingRef = useRef<Set<string>>(new Set());
+
+  const slAlertEnabled =
+    settings.notifications?.alertTypes?.stopLossTriggered ?? true;
+  const tpAlertEnabled =
+    settings.notifications?.alertTypes?.takeProfitHit ?? true;
 
   useEffect(() => {
     if (!price || price <= 0) return;
@@ -53,14 +62,24 @@ export function usePositionMonitor() {
           : (pos.entry - exitPrice) * pos.size;
 
       closingRef.current.add(pos.id);
+      const alertEnabled =
+        triggered === "SL" ? slAlertEnabled : tpAlertEnabled;
+
       close(pos.id, exitPrice, pnl)
         .then(() => {
           notifyAccountChanged();
+          if (alertEnabled) {
+            notify({
+              title: `${triggered} hit — ${pos.asset} ${pos.side}`,
+              body: `Exit $${formatPrice(exitPrice)} · PNL ${formatUsd(pnl, { signed: true })}`,
+              tag: `pos-${pos.id}`,
+            });
+          }
         })
         .catch(() => {
           // If close failed, allow retry on next tick
           closingRef.current.delete(pos.id);
         });
     }
-  }, [price, positions, symbol, close]);
+  }, [price, positions, symbol, close, slAlertEnabled, tpAlertEnabled]);
 }

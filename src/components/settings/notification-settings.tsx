@@ -1,13 +1,41 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Bell, Volume2 } from "lucide-react";
 import { useSettings } from "@/hooks/use-settings";
+import {
+  getPermission,
+  isNotificationSupported,
+  requestPermission,
+} from "@/lib/notifications";
 
 export function NotificationSettings() {
   const { settings, loading, saving, update } = useSettings();
   const notifications = settings.notifications || {};
   const alertTypes = notifications.alertTypes || {};
   const deliveryMethods = notifications.deliveryMethods || {};
+
+  const [permission, setPermissionState] = useState<
+    NotificationPermission | "unsupported"
+  >("default");
+
+  useEffect(() => {
+    setPermissionState(getPermission());
+  }, []);
+
+  async function handleRequestPermission() {
+    const result = await requestPermission();
+    setPermissionState(result);
+    if (result === "granted") {
+      // auto-enable browser push toggle
+      update({
+        notifications: {
+          ...notifications,
+          deliveryMethods: { ...deliveryMethods, browserPush: true },
+        },
+      });
+    }
+  }
 
   function patchAlert(key: string, value: boolean) {
     update({
@@ -48,6 +76,39 @@ export function NotificationSettings() {
       </div>
 
       <div className={`space-y-4 ${loading ? "opacity-50" : ""}`}>
+        {/* Browser permission */}
+        {isNotificationSupported() && (
+          <div className="bg-surface-container p-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs font-bold text-on-surface">
+                  Browser Notifications
+                </p>
+                <p className="text-[10px] text-on-surface-variant mt-0.5">
+                  {permission === "granted"
+                    ? "Permission granted"
+                    : permission === "denied"
+                      ? "Permission denied — enable in browser settings"
+                      : "Allow KINETIC to send alerts when SL/TP is hit"}
+                </p>
+              </div>
+              {permission !== "granted" && permission !== "denied" && (
+                <button
+                  onClick={handleRequestPermission}
+                  className="shrink-0 bg-primary text-[#004343] font-bold text-[10px] uppercase tracking-wider px-3 py-2 hover:opacity-90 transition-opacity"
+                >
+                  Enable
+                </button>
+              )}
+              {permission === "granted" && (
+                <span className="shrink-0 text-[10px] text-emerald-accent font-bold tracking-wider uppercase">
+                  ✓ ON
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Alert Categories */}
         <div className="bg-surface-container p-3 space-y-3">
           <p className="text-[10px] font-bold uppercase tracking-tighter text-on-surface-variant">
