@@ -11,6 +11,8 @@ export interface Position {
   exit: number | null;
   stopLoss: number | null;
   takeProfit: number | null;
+  trailingDistance: number | null;
+  trailingHighWater: number | null;
   pnl: number | null;
   status: "active" | "closed";
   openedAt: string;
@@ -24,6 +26,7 @@ export interface NewPosition {
   entry: number;
   stopLoss?: number;
   takeProfit?: number;
+  trailingDistance?: number;
 }
 
 export function usePositions(status: "active" | "closed" | "all" = "active") {
@@ -87,6 +90,45 @@ export function usePositions(status: "active" | "closed" | "all" = "active") {
     [refresh]
   );
 
+  const partialClose = useCallback(
+    async (id: string, closeSize: number, exit: number) => {
+      const res = await fetch(`/api/positions/${id}/partial-close`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ closeSize, exit }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to partial-close");
+      }
+      await refresh();
+      return res.json();
+    },
+    [refresh]
+  );
+
+  const modifySLTP = useCallback(
+    async (
+      id: string,
+      patch: {
+        stopLoss?: number | null;
+        takeProfit?: number | null;
+        trailingDistance?: number | null;
+        trailingHighWater?: number | null;
+      }
+    ) => {
+      const res = await fetch(`/api/positions/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      });
+      if (!res.ok) throw new Error("Failed to update SL/TP");
+      await refresh();
+      return res.json();
+    },
+    [refresh]
+  );
+
   const remove = useCallback(
     async (id: string) => {
       const res = await fetch(`/api/positions/${id}`, { method: "DELETE" });
@@ -96,5 +138,15 @@ export function usePositions(status: "active" | "closed" | "all" = "active") {
     [refresh]
   );
 
-  return { positions, loading, error, refresh, create, close, remove };
+  return {
+    positions,
+    loading,
+    error,
+    refresh,
+    create,
+    close,
+    partialClose,
+    modifySLTP,
+    remove,
+  };
 }

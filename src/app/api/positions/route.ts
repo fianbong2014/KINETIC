@@ -24,8 +24,15 @@ export async function POST(request: NextRequest) {
   if (error) return error;
 
   try {
-    const { asset, side, size, entry, stopLoss, takeProfit } =
-      await request.json();
+    const {
+      asset,
+      side,
+      size,
+      entry,
+      stopLoss,
+      takeProfit,
+      trailingDistance,
+    } = await request.json();
 
     if (!asset || !side || !size || !entry) {
       return NextResponse.json(
@@ -43,6 +50,14 @@ export async function POST(request: NextRequest) {
         entry,
         stopLoss: stopLoss ?? null,
         takeProfit: takeProfit ?? null,
+        trailingDistance:
+          typeof trailingDistance === "number" && trailingDistance > 0
+            ? trailingDistance
+            : null,
+        trailingHighWater:
+          typeof trailingDistance === "number" && trailingDistance > 0
+            ? entry
+            : null,
       },
     });
 

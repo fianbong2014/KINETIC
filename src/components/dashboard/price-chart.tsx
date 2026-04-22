@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { usePrice } from "@/components/providers/price-provider";
 import { useFundingRate } from "@/hooks/use-funding-rate";
+import { usePositions } from "@/hooks/use-positions";
 import {
   Camera,
   Maximize2,
@@ -71,6 +72,7 @@ export function PriceChart() {
   const [activeTimeframe, setActiveTimeframe] = useState("1H");
   const { price, priceChangePercent24h, high24h, low24h, symbol, pair } =
     usePrice();
+  const { positions } = usePositions("active");
 
   const chartContainerRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -81,6 +83,9 @@ export function PriceChart() {
   const volumeSeriesRef = useRef<any>(null);
   const lastCandleRef = useRef<CandleData | null>(null);
   const currentIntervalRef = useRef("1h");
+  // Track price lines per position id so we can add/remove cleanly on change
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const priceLinesRef = useRef<Map<string, any[]>>(new Map());
 
   // Load kline data — defined before useEffect so it can be called during init
   const loadData = useCallback(
@@ -197,6 +202,7 @@ export function PriceChart() {
       candleSeriesRef.current = null;
       volumeSeriesRef.current = null;
       lastCandleRef.current = null;
+      priceLinesRef.current.clear();
     };
   }, [loadData]);
 
@@ -216,6 +222,90 @@ export function PriceChart() {
     if (!tf) return;
     loadData(symbol, tf.interval, tf.limit);
   }, [symbol, activeTimeframe, loadData]);
+
+  // Sync price lines (entry / SL / TP) for active positions matching the
+  // currently selected pair. Re-runs whenever the positions list or symbol
+  // changes. Lines are removed when their position closes or is deleted.
+  useEffect(() => {
+    const series = candleSeriesRef.current;
+    if (!series) return;
+
+    const relevant = positions.filter(
+      (p) => p.asset === symbol && p.status === "active"
+    );
+    const activeIds = new Set(relevant.map((p) => p.id));
+
+    // Remove lines for positions that are no longer relevant
+    for (const [id, lines] of priceLinesRef.current.entries()) {
+      if (!activeIds.has(id)) {
+        for (const line of lines) {
+          try {
+            series.removePriceLine(line);
+          } catch {
+            // already removed
+          }
+        }
+        priceLinesRef.current.delete(id);
+      }
+    }
+
+    // Add/update lines for each active position
+    for (const pos of relevant) {
+      const existing = priceLinesRef.current.get(pos.id);
+      if (existing) {
+        // Remove old lines before re-adding (simpler than diffing prices)
+        for (const line of existing) {
+          try {
+            series.removePriceLine(line);
+          } catch {
+            // ignore
+          }
+        }
+      }
+
+      const lines: unknown[] = [];
+      const sideColor = pos.side === "LONG" ? "#00ffff" : "#ff734c";
+
+      lines.push(
+        series.createPriceLine({
+          price: pos.entry,
+          color: sideColor,
+          lineWidth: 1,
+          lineStyle: 2, // dashed
+          axisLabelVisible: true,
+          title: `${pos.side} ${pos.size}`,
+        })
+      );
+
+      if (pos.stopLoss) {
+        lines.push(
+          series.createPriceLine({
+            price: pos.stopLoss,
+            color: "#ff716c",
+            lineWidth: 1,
+            lineStyle: 3, // dotted
+            axisLabelVisible: true,
+            title: "SL",
+          })
+        );
+      }
+
+      if (pos.takeProfit) {
+        lines.push(
+          series.createPriceLine({
+            price: pos.takeProfit,
+            color: "#50c878",
+            lineWidth: 1,
+            lineStyle: 3, // dotted
+            axisLabelVisible: true,
+            title: "TP",
+          })
+        );
+      }
+
+      priceLinesRef.current.set(pos.id, lines);
+    }
+  }, [positions, symbol]);
 
   // Update last candle with live price
   useEffect(() => {

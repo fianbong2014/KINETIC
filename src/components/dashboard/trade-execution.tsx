@@ -20,6 +20,8 @@ export function TradeExecution() {
   const [stopLoss, setStopLoss] = useState("");
   const [takeProfit, setTakeProfit] = useState("");
   const [limitPrice, setLimitPrice] = useState("");
+  const [trailingDistance, setTrailingDistance] = useState("");
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<{ type: "ok" | "err"; text: string } | null>(
     null
@@ -60,6 +62,9 @@ export function TradeExecution() {
 
     const sl = stopLoss ? parseFloat(stopLoss) : undefined;
     const tp = takeProfit ? parseFloat(takeProfit) : undefined;
+    const trail = trailingDistance
+      ? parseFloat(trailingDistance)
+      : undefined;
 
     // Validate SL/TP direction
     if (sl !== undefined) {
@@ -101,6 +106,7 @@ export function TradeExecution() {
         entry: entryPrice,
         stopLoss: sl,
         takeProfit: tp,
+        trailingDistance: trail && trail > 0 ? trail : undefined,
       });
       notifyAccountChanged();
       const successMsg = `${side} ${size} ${pair.base} @ $${formatPrice(entryPrice)}`;
@@ -113,6 +119,7 @@ export function TradeExecution() {
       setStopLoss("");
       setTakeProfit("");
       setLimitPrice("");
+      setTrailingDistance("");
     } catch (e) {
       const errMsg = e instanceof Error ? e.message : "Failed to place order";
       setMessage({ type: "err", text: errMsg });
@@ -210,6 +217,31 @@ export function TradeExecution() {
             />
           </div>
         </div>
+
+        {/* Advanced toggle */}
+        <button
+          type="button"
+          onClick={() => setShowAdvanced((v) => !v)}
+          className="text-[10px] text-on-surface-variant hover:text-on-surface tracking-wider uppercase font-bold"
+        >
+          {showAdvanced ? "− Hide Advanced" : "+ Advanced"}
+        </button>
+
+        {showAdvanced && (
+          <div className="relative">
+            <label className="absolute -top-2 left-2 px-1 bg-surface-container-high text-[8px] font-bold text-on-surface-variant uppercase">
+              Trailing Stop Distance ($)
+            </label>
+            <input
+              type="number"
+              step="any"
+              value={trailingDistance}
+              onChange={(e) => setTrailingDistance(e.target.value)}
+              placeholder="e.g. 500 — SL trails price by $500"
+              className="w-full bg-surface-container-lowest border-0 text-sm font-heading font-bold py-3 px-3 text-on-surface focus:ring-1 focus:ring-cyan focus:bg-surface-bright transition-all placeholder:text-on-surface-variant/50"
+            />
+          </div>
+        )}
       </div>
 
       {/* Message */}

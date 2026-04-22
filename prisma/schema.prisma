@@ -69,21 +69,23 @@ model VerificationToken {
 // ─── Domain tables ────────────────────────────────────────────
 
 model Position {
-  id         String    @id @default(cuid())
-  userId     String
-  asset      String    // "BTCUSDT"
-  side       String    // "LONG" | "SHORT"
-  size       Float
-  entry      Float
-  exit       Float?
-  stopLoss   Float?
-  takeProfit Float?
-  pnl        Float?
-  status     String    @default("active") // "active" | "closed"
-  openedAt   DateTime  @default(now())
-  closedAt   DateTime?
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  id               String    @id @default(cuid())
+  userId           String
+  asset            String    // "BTCUSDT"
+  side             String    // "LONG" | "SHORT"
+  size             Float
+  entry            Float
+  exit             Float?
+  stopLoss         Float?
+  takeProfit       Float?
+  trailingDistance Float?    // price distance for trailing stop (absolute)
+  trailingHighWater Float?   // best price reached (high for LONG, low for SHORT)
+  pnl              Float?
+  status           String    @default("active") // "active" | "closed"
+  openedAt         DateTime  @default(now())
+  closedAt         DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

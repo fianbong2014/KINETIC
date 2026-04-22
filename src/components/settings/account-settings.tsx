@@ -1,8 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import { useSession, signOut } from "next-auth/react";
-import { User, LogOut, Clock, DollarSign } from "lucide-react";
-import { useAccount } from "@/hooks/use-account";
+import { User, LogOut, Clock, DollarSign, RefreshCw } from "lucide-react";
+import { useAccount, notifyAccountChanged } from "@/hooks/use-account";
+import { useToast } from "@/components/providers/toast-provider";
 import { formatUsd } from "@/lib/format";
 
 export function AccountSettings() {
@@ -15,6 +17,46 @@ export function AccountSettings() {
     totalClosedTrades,
     loading,
   } = useAccount();
+  const toast = useToast();
+  const [resetting, setResetting] = useState(false);
+
+  async function handleReset(wipeJournal: boolean) {
+    const label = wipeJournal ? "account AND journal" : "account only";
+    if (
+      !confirm(
+        `Reset paper ${label}?\n\n` +
+          `• Delete all positions (active + closed)\n` +
+          (wipeJournal ? `• Delete all journal entries\n` : "") +
+          `• Reset balance to $10,000\n\n` +
+          `This cannot be undone.`
+      )
+    )
+      return;
+
+    setResetting(true);
+    try {
+      const res = await fetch("/api/account/reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ startingBalance: 10000, wipeJournal }),
+      });
+      if (!res.ok) throw new Error("Reset failed");
+      notifyAccountChanged();
+      toast.success(
+        "Paper Account Reset",
+        `Balance reset to $10,000${wipeJournal ? " · Journal wiped" : ""}`
+      );
+      // Force reload so all hooks pick up the new state (journal, positions, etc.)
+      setTimeout(() => window.location.reload(), 800);
+    } catch (e) {
+      toast.error(
+        "Reset Failed",
+        e instanceof Error ? e.message : "Unknown error"
+      );
+    } finally {
+      setResetting(false);
+    }
+  }
 
   const userName = session?.user?.name || "Kinetic User";
   const userEmail = session?.user?.email || "kinetic@terminal.io";
@@ -84,6 +126,26 @@ export function AccountSettings() {
           <p className="text-[9px] text-on-surface-variant tracking-wider pt-1">
             {loading ? "" : `${totalClosedTrades} closed trades`}
           </p>
+
+          {/* Reset actions */}
+          <div className="flex flex-col sm:flex-row gap-1 pt-2 border-t border-outline-variant/10">
+            <button
+              onClick={() => handleReset(false)}
+              disabled={resetting}
+              className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-surface-container-high text-on-surface-variant hover:text-cyan text-[10px] font-bold uppercase tracking-widest transition-colors disabled:opacity-50"
+            >
+              <RefreshCw className="w-3 h-3" />
+              Reset Account
+            </button>
+            <button
+              onClick={() => handleReset(true)}
+              disabled={resetting}
+              className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-crimson/10 text-crimson hover:bg-crimson/20 text-[10px] font-bold uppercase tracking-widest transition-colors disabled:opacity-50"
+            >
+              <RefreshCw className="w-3 h-3" />
+              Wipe All
+            </button>
+          </div>
         </div>
 
         {/* Session Timeout */}

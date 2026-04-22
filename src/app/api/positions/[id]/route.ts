@@ -93,10 +93,18 @@ export async function PATCH(
     return NextResponse.json(updated);
   }
 
-  // Not closing — plain update (e.g. modify SL/TP)
+  // Not closing — plain update, whitelisted fields only
+  const allowed: Record<string, unknown> = {};
+  if ("stopLoss" in body) allowed.stopLoss = body.stopLoss;
+  if ("takeProfit" in body) allowed.takeProfit = body.takeProfit;
+  if ("trailingDistance" in body)
+    allowed.trailingDistance = body.trailingDistance;
+  if ("trailingHighWater" in body)
+    allowed.trailingHighWater = body.trailingHighWater;
+
   const updated = await db.position.update({
     where: { id },
-    data: body,
+    data: allowed,
   });
 
   return NextResponse.json(updated);
