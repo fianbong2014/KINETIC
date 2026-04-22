@@ -5,7 +5,7 @@ import { ExposureHeatmap } from "@/components/risk/exposure-heatmap";
 
 export default function RiskPage() {
   return (
-    <div className="max-w-[1600px] mx-auto grid grid-cols-12 gap-6">
+    <div className="max-w-[1600px] mx-auto grid grid-cols-12 gap-3 lg:gap-6">
       {/* ROW 1: Portfolio Health + Risk Calculator */}
       <PortfolioHealth />
       <RiskCalculator />
@@ -14,8 +14,8 @@ export default function RiskPage() {
       <ActiveExposure />
 
       {/* ROW 3: Trade Journal Preview + Exposure Heatmap */}
-      <div className="col-span-12 lg:col-span-7 bg-surface-container-low p-6">
-        <div className="mb-6">
+      <div className="col-span-12 lg:col-span-7 bg-surface-container-low p-4 lg:p-6">
+        <div className="mb-4 lg:mb-6">
           <h3 className="text-sm font-medium text-on-surface tracking-wider uppercase mb-2">
             Trade Journal Preview
           </h3>

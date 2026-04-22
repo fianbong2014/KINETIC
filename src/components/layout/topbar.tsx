@@ -7,7 +7,7 @@ import { usePrice } from "@/components/providers/price-provider";
 import { useAccount } from "@/hooks/use-account";
 import { PairSelector } from "@/components/layout/pair-selector";
 import { formatUsd } from "@/lib/format";
-import { Bell, Wallet } from "lucide-react";
+import { Bell } from "lucide-react";
 
 const navLinks = [
   { label: "DASHBOARD", href: "/dashboard" },
@@ -27,16 +27,16 @@ export function Topbar() {
 
   return (
     <>
-      <header className="px-6 py-4 bg-[#0e0e0f] flex items-center justify-between">
+      <header className="px-4 lg:px-6 py-3 lg:py-4 bg-[#0e0e0f] flex items-center justify-between gap-3">
         {/* Left: Branding + Nav */}
-        <div className="flex items-center gap-8">
-          <Link href="/dashboard">
-            <span className="text-2xl font-black tracking-tighter text-[#00ffff] font-heading">
+        <div className="flex items-center gap-4 lg:gap-8 min-w-0">
+          <Link href="/dashboard" className="shrink-0">
+            <span className="text-xl lg:text-2xl font-black tracking-tighter text-[#00ffff] font-heading">
               KINETIC
             </span>
           </Link>
 
-          {/* Nav links */}
+          {/* Nav links — desktop only */}
           <nav className="hidden lg:flex items-center gap-6">
             {navLinks.map((link) => {
               const isActive =
@@ -60,8 +60,8 @@ export function Topbar() {
         </div>
 
         {/* Right: Price + Execute + Icons */}
-        <div className="flex items-center gap-4">
-          {/* Paper balance */}
+        <div className="flex items-center gap-2 lg:gap-4 min-w-0">
+          {/* Paper balance — md+ */}
           <div className="hidden md:flex flex-col items-end">
             <span className="text-xs font-bold text-on-surface tabular-nums">
               {accountLoading ? "—" : formatUsd(balance)}
@@ -83,39 +83,38 @@ export function Topbar() {
           {/* Pair selector */}
           <PairSelector />
 
-          {/* Price display */}
-          <div className="flex flex-col items-end">
+          {/* Price display — sm+ */}
+          <div className="hidden sm:flex flex-col items-end">
             <div className="flex items-center gap-1.5">
               <AnimatedPrice
                 value={price}
                 size="sm"
                 className="text-xs font-bold text-on-surface-variant"
               />
-              <span className="text-xs font-bold text-on-surface-variant">
+              <span className="text-xs font-bold text-on-surface-variant hidden lg:inline">
                 {pair.display}
               </span>
               {isConnected && (
                 <span className="w-1.5 h-1.5 bg-emerald-accent animate-pulse" />
               )}
             </div>
-            <span className="text-[10px] text-[#00ffff] uppercase font-bold">
-              {changePercent} Volatility: High
+            <span
+              className={`text-[10px] uppercase font-bold tabular-nums ${
+                priceChangePercent24h >= 0
+                  ? "text-emerald-accent"
+                  : "text-crimson"
+              }`}
+            >
+              {changePercent}
             </span>
           </div>
 
-          {/* Execute Trade button */}
-          <button className="bg-cyan text-[#004343] font-heading font-bold text-xs uppercase px-4 py-2 hover:opacity-90 transition-opacity">
-            Execute Trade
-          </button>
-
           {/* Notification bell */}
-          <button className="text-[#adaaab] hover:text-[#ffffff] transition-colors">
+          <button
+            aria-label="Notifications"
+            className="text-[#adaaab] hover:text-[#ffffff] transition-colors shrink-0"
+          >
             <Bell className="w-5 h-5" />
-          </button>
-
-          {/* Wallet */}
-          <button className="text-[#adaaab] hover:text-[#ffffff] transition-colors">
-            <Wallet className="w-5 h-5" />
           </button>
         </div>
       </header>

@@ -5,7 +5,7 @@ import { PerformanceBreakdown } from "@/components/journal/performance-breakdown
 
 export default function JournalPage() {
   return (
-    <div className="flex flex-col gap-1 h-full">
+    <div className="flex flex-col gap-2 lg:gap-1 h-full">
       {/* Stats row */}
       <JournalStats />
 

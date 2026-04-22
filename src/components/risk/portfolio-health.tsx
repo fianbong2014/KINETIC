@@ -37,7 +37,7 @@ export function PortfolioHealth() {
     health >= 70 ? "Optimal Risk" : health >= 40 ? "Elevated" : "Critical";
 
   return (
-    <div className="col-span-12 lg:col-span-4 bg-surface-container-low p-6 min-h-[400px] flex flex-col">
+    <div className="col-span-12 lg:col-span-4 bg-surface-container-low p-4 lg:p-6 min-h-[360px] lg:min-h-[400px] flex flex-col">
       {/* Title */}
       <div className="mb-6">
         <h3 className="text-sm font-medium text-on-surface tracking-wider uppercase mb-2">
@@ -49,7 +49,7 @@ export function PortfolioHealth() {
       {/* SVG Circular Gauge */}
       <div className="flex-1 flex items-center justify-center">
         <div className="relative">
-          <svg className="w-64 h-64 transform -rotate-90" viewBox="0 0 256 256">
+          <svg className="w-48 h-48 sm:w-56 sm:h-56 lg:w-64 lg:h-64 transform -rotate-90" viewBox="0 0 256 256">
             <circle
               cx="128"
               cy="128"

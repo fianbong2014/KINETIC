@@ -21,7 +21,9 @@ export default function AppLayout({
         <div className="pl-0 lg:pl-20 min-h-screen flex flex-col">
           <Topbar />
 
-          <main className="flex-1 p-6 pb-16 lg:pb-6">{children}</main>
+          <main className="flex-1 p-3 sm:p-4 lg:p-6 pb-20 lg:pb-6">
+            {children}
+          </main>
 
           {/* Desktop status bar */}
           <div className="hidden lg:block shrink-0">

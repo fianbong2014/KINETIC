@@ -44,9 +44,9 @@ export function RiskCalculator() {
   }
 
   return (
-    <div className="col-span-12 lg:col-span-8 bg-surface-container-low p-6">
+    <div className="col-span-12 lg:col-span-8 bg-surface-container-low p-4 lg:p-6">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-start justify-between gap-3 mb-4 lg:mb-6 flex-wrap">
         <div>
           <h3 className="text-sm font-medium text-on-surface tracking-wider uppercase mb-2">
             Risk Calculator
@@ -57,7 +57,7 @@ export function RiskCalculator() {
           <span className="text-[10px] text-on-surface-variant block mb-1 uppercase tracking-wider">
             Paper Balance
           </span>
-          <span className="text-2xl font-heading font-bold text-on-surface tabular-nums">
+          <span className="text-xl lg:text-2xl font-heading font-bold text-on-surface tabular-nums">
             {loading ? "—" : formatUsd(balance)}
           </span>
         </div>

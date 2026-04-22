@@ -5,6 +5,7 @@ import { usePositions } from "@/hooks/use-positions";
 import { useAccount, notifyAccountChanged } from "@/hooks/use-account";
 import { useSettings } from "@/hooks/use-settings";
 import { usePrice } from "@/components/providers/price-provider";
+import { useToast } from "@/components/providers/toast-provider";
 import { formatPrice, formatUsd } from "@/lib/format";
 
 export function TradeExecution() {
@@ -12,6 +13,7 @@ export function TradeExecution() {
   const { balance, loading: accountLoading } = useAccount();
   const { settings } = useSettings();
   const { price: livePrice, symbol, pair } = usePrice();
+  const toast = useToast();
 
   const [orderType, setOrderType] = useState<"MARKET" | "LIMIT">("MARKET");
   const [amount, setAmount] = useState("0.05");
@@ -101,19 +103,20 @@ export function TradeExecution() {
         takeProfit: tp,
       });
       notifyAccountChanged();
-      setMessage({
-        type: "ok",
-        text: `${side} ${size} ${pair.base} @ $${formatPrice(entryPrice)}`,
-      });
+      const successMsg = `${side} ${size} ${pair.base} @ $${formatPrice(entryPrice)}`;
+      setMessage({ type: "ok", text: successMsg });
+      toast.success(
+        `${side} Order Placed`,
+        `${size} ${pair.base} @ $${formatPrice(entryPrice)} · Notional ${formatUsd(notional)}`
+      );
       // Clear form
       setStopLoss("");
       setTakeProfit("");
       setLimitPrice("");
     } catch (e) {
-      setMessage({
-        type: "err",
-        text: e instanceof Error ? e.message : "Failed to place order",
-      });
+      const errMsg = e instanceof Error ? e.message : "Failed to place order";
+      setMessage({ type: "err", text: errMsg });
+      toast.error("Order Failed", errMsg);
     } finally {
       setSubmitting(false);
     }

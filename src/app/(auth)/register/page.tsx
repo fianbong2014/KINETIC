@@ -5,9 +5,11 @@ import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Zap, UserPlus } from "lucide-react";
+import { useToast } from "@/components/providers/toast-provider";
 
 export default function RegisterPage() {
   const router = useRouter();
+  const toast = useToast();
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -56,6 +58,7 @@ export default function RegisterPage() {
       if (result?.error) {
         setError("Account created but sign-in failed. Please login manually.");
       } else {
+        toast.success("Welcome to KINETIC", "Paper account funded with $10,000");
         router.push("/dashboard");
         router.refresh();
       }

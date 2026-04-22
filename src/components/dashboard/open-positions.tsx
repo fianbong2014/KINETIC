@@ -3,11 +3,13 @@
 import { usePositions, type Position } from "@/hooks/use-positions";
 import { notifyAccountChanged } from "@/hooks/use-account";
 import { usePrice } from "@/components/providers/price-provider";
+import { useToast } from "@/components/providers/toast-provider";
 import { formatPrice, formatUsd, formatPct } from "@/lib/format";
 
 export function OpenPositions() {
   const { positions, loading, close, remove } = usePositions("active");
   const { price: currentPrice, symbol: currentSymbol } = usePrice();
+  const toast = useToast();
 
   // Live exit price is only available when the selected pair matches the position's asset
   function getExitPrice(pos: Position): number {
@@ -28,22 +30,46 @@ export function OpenPositions() {
         `Close ${pos.asset} ${pos.side} @ $${formatPrice(exitPrice)}?\nPNL: ${formatUsd(pnl, { signed: true })}`
       )
     ) {
-      await close(pos.id, exitPrice, pnl);
-      notifyAccountChanged();
+      try {
+        await close(pos.id, exitPrice, pnl);
+        notifyAccountChanged();
+        if (pnl >= 0) {
+          toast.success(
+            "Position Closed",
+            `${pos.asset} ${pos.side} · PNL ${formatUsd(pnl, { signed: true })}`
+          );
+        } else {
+          toast.warning(
+            "Position Closed",
+            `${pos.asset} ${pos.side} · PNL ${formatUsd(pnl, { signed: true })}`
+          );
+        }
+      } catch (e) {
+        toast.error(
+          "Close Failed",
+          e instanceof Error ? e.message : "Unknown error"
+        );
+      }
     }
   }
 
   async function handleCloseAll() {
     if (!confirm(`Panic close all ${positions.length} positions?`)) return;
+    let totalPnl = 0;
     for (const pos of positions) {
       const exitPrice = getExitPrice(pos);
       const pnl =
         pos.side === "LONG"
           ? (exitPrice - pos.entry) * pos.size
           : (pos.entry - exitPrice) * pos.size;
+      totalPnl += pnl;
       await close(pos.id, exitPrice, pnl);
     }
     notifyAccountChanged();
+    toast.info(
+      "All Positions Closed",
+      `${positions.length} positions · Total ${formatUsd(totalPnl, { signed: true })}`
+    );
   }
 
   return (

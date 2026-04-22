@@ -8,31 +8,39 @@ import { PositionMonitor } from "@/components/dashboard/position-monitor";
 
 export default function DashboardPage() {
   return (
-    <div className="grid grid-cols-12 gap-6">
+    <div className="grid grid-cols-12 gap-3 lg:gap-6">
       {/* Renderless: auto-closes positions when SL/TP is hit */}
       <PositionMonitor />
 
-      {/* Left Col: Risk & Analysis (3 cols, stacks on mobile) */}
-      <div className="col-span-12 xl:col-span-3 flex flex-col gap-6">
+      {/* Mobile-only: Trade Execution pinned near the top so users can place
+          orders without scrolling past the chart. */}
+      <div className="col-span-12 xl:hidden order-1">
+        <TradeExecution />
+      </div>
+
+      {/* Left Col: Risk & Signal Analysis */}
+      <div className="col-span-12 xl:col-span-3 flex flex-col gap-3 lg:gap-6 order-3 xl:order-1">
         <RiskControl />
         <SignalLogic />
       </div>
 
-      {/* Middle Col: Chart + Open Positions (6 cols on xl, 9 on lg) */}
-      <div className="col-span-12 lg:col-span-9 xl:col-span-6 flex flex-col gap-6">
-        {/* Main Chart Area */}
-        <div className="flex-1 min-h-[400px]">
+      {/* Middle Col: Chart + Open Positions */}
+      <div className="col-span-12 xl:col-span-6 flex flex-col gap-3 lg:gap-6 order-2 xl:order-2">
+        <div className="flex-1 min-h-[360px] lg:min-h-[400px]">
           <PriceChart />
         </div>
-
-        {/* Open Positions */}
         <OpenPositions />
       </div>
 
-      {/* Right Col: Order Book & Execution (3 cols, hidden below xl) */}
-      <div className="hidden xl:flex col-span-3 flex-col gap-6">
+      {/* Right Col on xl+: Order Book & Execution */}
+      <div className="hidden xl:flex xl:col-span-3 flex-col gap-6 order-3">
         <OrderBook />
         <TradeExecution />
+      </div>
+
+      {/* Tablet/mobile: Order Book as its own row */}
+      <div className="col-span-12 xl:hidden order-4">
+        <OrderBook />
       </div>
     </div>
   );

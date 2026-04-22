@@ -26,7 +26,7 @@ export function OrderBook() {
   const midPrice = bestAsk && bestBid ? (bestAsk + bestBid) / 2 : 0;
 
   return (
-    <section className="bg-surface-container-low flex-1 flex flex-col p-5 overflow-hidden min-h-0">
+    <section className="bg-surface-container-low flex-1 flex flex-col p-5 overflow-hidden min-h-[420px]">
       <div className="flex items-center justify-between mb-3">
         <h2 className="font-heading text-sm font-bold tracking-widest uppercase text-on-surface">
           Order Book

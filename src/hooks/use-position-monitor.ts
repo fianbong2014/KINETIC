@@ -5,6 +5,7 @@ import { usePositions } from "@/hooks/use-positions";
 import { notifyAccountChanged } from "@/hooks/use-account";
 import { useSettings } from "@/hooks/use-settings";
 import { usePrice } from "@/components/providers/price-provider";
+import { useToast } from "@/components/providers/toast-provider";
 import { notify } from "@/lib/notifications";
 import { formatPrice, formatUsd } from "@/lib/format";
 
@@ -23,6 +24,8 @@ export function usePositionMonitor() {
   // Guard so we don't fire multiple close requests for the same position
   // while a close is still in flight.
   const closingRef = useRef<Set<string>>(new Set());
+
+  const toast = useToast();
 
   const slAlertEnabled =
     settings.notifications?.alertTypes?.stopLossTriggered ?? true;
@@ -68,10 +71,18 @@ export function usePositionMonitor() {
       close(pos.id, exitPrice, pnl)
         .then(() => {
           notifyAccountChanged();
+
+          // In-app toast
+          const toastTitle = `${triggered} hit — ${pos.asset} ${pos.side}`;
+          const toastBody = `Exit $${formatPrice(exitPrice)} · PNL ${formatUsd(pnl, { signed: true })}`;
+          if (triggered === "TP") toast.success(toastTitle, toastBody);
+          else toast.warning(toastTitle, toastBody);
+
+          // Browser notification if permitted
           if (alertEnabled) {
             notify({
-              title: `${triggered} hit — ${pos.asset} ${pos.side}`,
-              body: `Exit $${formatPrice(exitPrice)} · PNL ${formatUsd(pnl, { signed: true })}`,
+              title: toastTitle,
+              body: toastBody,
               tag: `pos-${pos.id}`,
             });
           }
@@ -81,5 +92,5 @@ export function usePositionMonitor() {
           closingRef.current.delete(pos.id);
         });
     }
-  }, [price, positions, symbol, close, slAlertEnabled, tpAlertEnabled]);
+  }, [price, positions, symbol, close, toast, slAlertEnabled, tpAlertEnabled]);
 }
