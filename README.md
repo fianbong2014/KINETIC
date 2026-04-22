@@ -210,6 +210,7 @@ prisma/
 | `/api/journal` | GET, POST | List/create journal entries (paginated) |
 | `/api/journal/[id]` | PATCH, DELETE | Update/delete journal entry |
 | `/api/settings` | GET, PATCH | Get/merge user settings (shallow merge) |
+| `/api/account` | GET | Paper balance, equity, exposure, realized PNL, drawdown |
 
 ### Binance (Free, No Auth Required)
 
@@ -240,12 +241,14 @@ prisma/
 - [x] **Historical Data** — klines from Binance REST API for all timeframes (1M / 15M / 1H / 4H / 1D)
 - [x] **Funding Rate** — perpetual futures funding rate + next funding countdown
 
-### Phase 3: Trading Engine
-- [ ] **Order Execution** — เชื่อมกับ exchange API (Binance/Bybit) สำหรับ place orders จริง
-- [ ] **Position Tracking** — Track open positions แบบ real-time พร้อม PNL calculation
-- [ ] **Stop Loss / Take Profit** — ระบบจัดการ SL/TP อัตโนมัติ
-- [ ] **Paper Trading Mode** — โหมดซ้อมเทรดด้วยเงินจำลอง
-- [ ] **Risk Calculator (Live)** — คำนวณ position size จาก account balance จริง
+### Phase 3: Paper Trading Engine ✅
+- [x] **Paper Trading Mode** — virtual $10,000 balance per user, tracked in DB
+- [x] **Position Tracking** — open positions with live unrealized PNL from WebSocket price
+- [x] **Stop Loss / Take Profit** — auto-trigger SL/TP via client-side monitor (fires while dashboard is open)
+- [x] **Auto-journal on Close** — closing a position creates a JournalEntry with derived R:R ratio
+- [x] **Risk Calculator (Live)** — position size from real paper balance × risk %
+- [x] **Balance-aware Trade Form** — blocks orders exceeding balance, validates SL/TP direction
+- [ ] **Real Exchange Order Execution** — connect to Binance/Bybit for live trading (deferred — skip for MVP safety)
 
 ### Phase 4: Signal & Analytics
 - [ ] **Signal Engine** — ระบบสร้าง signal อัตโนมัติจาก technical indicators (RSI, MACD, EMA crossover)
