@@ -4,6 +4,7 @@ import { NotificationSettings } from "@/components/settings/notification-setting
 import { DisplaySettings } from "@/components/settings/display-settings";
 import { ApiConnections } from "@/components/settings/api-connections";
 import { AccountSettings } from "@/components/settings/account-settings";
+import { CustomIndicatorsSettings } from "@/components/settings/custom-indicators-settings";
 
 export default function SettingsPage() {
   return (
@@ -24,6 +25,11 @@ export default function SettingsPage() {
       <div className="col-span-12 lg:col-span-6 xl:col-span-4 flex flex-col gap-3 lg:gap-6">
         <NotificationSettings />
         <DisplaySettings />
+      </div>
+
+      {/* Full-width */}
+      <div className="col-span-12">
+        <CustomIndicatorsSettings />
       </div>
     </div>
   );

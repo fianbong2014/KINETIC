@@ -258,20 +258,34 @@ prisma/
 - [x] **Alert System** — Browser notifications on SL/TP trigger, gated by user alert preferences
 - [ ] **Backtesting** — deferred to Phase 6 (requires historical kline replay + strategy harness)
 
-### Phase 5: Production Ready 🚧
+### Phase 5: Production Ready ✅
 - [x] **Error Boundaries** — `error.tsx` at root + `(app)` group with styled retry panel
 - [x] **404 Page** — terminal-styled `not-found.tsx`
 - [x] **In-app Toasts** — ToastProvider wired into trade/close/register/SL-TP events
 - [x] **Mobile Optimization** — Dashboard/Risk/Settings/Topbar fully responsive; trade exec pinned on mobile
 - [x] **Reusable Skeleton component** — ready for incremental loading-state rollout
 - [x] **Vercel Deployment** — Auto-deploy on push via GitHub integration
-- [ ] **PWA Support** — Offline capability + installable app
+
+### Phase 6: Paper Trading Polish ✅
+- [x] **Reset Balance** — คืนค่า paper balance กลับ $10,000
+- [x] **Partial Close** — ปิด position บางส่วน
+- [x] **Trade History** — ประวัติการปิด trade พร้อม filter
+- [x] **Trailing Stop** — SL เลื่อนตามราคาอัตโนมัติ
+- [x] **Chart Annotations** — markers สำหรับ entry/exit บน chart
+
+### Phase 7: Alerts & PWA ✅
+- [x] **Price Alerts** — แจ้งเตือนเมื่อราคาแตะระดับที่ตั้ง
+- [x] **PWA Support** — Installable app + offline shell
+- [x] **Chart Drawing Tools** — trendline, horizontal line, fullscreen mode
+
+### Phase 8: Hardening 🚧
 - [ ] **i18n** — รองรับภาษาไทยและภาษาอื่น
 - [ ] **Rate Limiting** — จัดการ API rate limits ของ Binance
 - [ ] **Testing** — Unit tests (Vitest) + E2E tests (Playwright)
 - [ ] **Monitoring** — Error tracking (Sentry) + analytics
+- [ ] **Backtesting** — historical kline replay + strategy harness (ยก deferred มาจาก Phase 4)
 
-### Phase 6: Advanced Features
+### Phase 9: Advanced Features
 - [ ] **Multi-exchange** — รองรับ Bybit, OKX, Coinbase นอกจาก Binance
 - [ ] **Portfolio Dashboard** — สรุป portfolio ข้าม exchanges
 - [ ] **Social Trading** — แชร์ signals และ trade ideas

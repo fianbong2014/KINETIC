@@ -27,6 +27,7 @@ model User {
   positions     Position[]
   journalEntries JournalEntry[]
   priceAlerts   PriceAlert[]
+  customIndicators CustomIndicator[]
 }
 
 model Account {
@@ -110,6 +111,22 @@ model PriceAlert {
 
   @@index([userId, active])
   @@index([userId, symbol])
+}
+
+model CustomIndicator {
+  id         String   @id @default(cuid())
+  userId     String
+  name       String
+  expression String   @db.Text
+  color      String   @default("#00ffff")
+  overlay    Boolean  @default(true)
+  enabled    Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model JournalEntry {

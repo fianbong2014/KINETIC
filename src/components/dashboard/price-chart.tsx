@@ -23,6 +23,11 @@ import {
   type HorizontalLevel,
   type TrendLine,
 } from "@/lib/drawings";
+import { useCustomIndicators } from "@/hooks/use-custom-indicators";
+import {
+  compileExpression,
+  candlesToContext,
+} from "@/lib/custom-indicators";
 
 interface CandleData {
   time: number;
@@ -94,6 +99,8 @@ export function PriceChart() {
   const { price, priceChangePercent24h, high24h, low24h, symbol, pair } =
     usePrice();
   const { positions } = usePositions("active");
+  const { indicators } = useCustomIndicators();
+  const [candlesVersion, setCandlesVersion] = useState(0);
 
   const chartContainerRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -104,6 +111,11 @@ export function PriceChart() {
   const volumeSeriesRef = useRef<any>(null);
   const lastCandleRef = useRef<CandleData | null>(null);
   const currentIntervalRef = useRef("1h");
+  const candlesDataRef = useRef<CandleData[]>([]);
+  const volumesDataRef = useRef<VolumeData[]>([]);
+  // Track LineSeries for each custom indicator by id
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const indicatorSeriesRef = useRef<Map<string, any>>(new Map());
 
   // Track price lines per position id
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -130,6 +142,9 @@ export function PriceChart() {
           volumeSeriesRef.current.setData(volumes as any);
           lastCandleRef.current = candles[candles.length - 1] || null;
           currentIntervalRef.current = interval;
+          candlesDataRef.current = candles;
+          volumesDataRef.current = volumes;
+          setCandlesVersion((v) => v + 1);
           chartRef.current?.timeScale().fitContent();
         }
       } catch (err) {
@@ -250,9 +265,93 @@ export function PriceChart() {
       positionLinesRef.current.clear();
       levelLinesRef.current.clear();
       trendSeriesRef.current.clear();
+      indicatorSeriesRef.current.clear();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadData]);
+
+  // Sync custom indicators — create LineSeries for each enabled overlay
+  // indicator and recompute values whenever candles or indicator list change.
+  useEffect(() => {
+    const chart = chartRef.current;
+    const mod = lwcModuleRef.current;
+    if (!chart || !mod) return;
+
+    const active = indicators.filter((i) => i.enabled && i.overlay);
+    const activeIds = new Set(active.map((i) => i.id));
+
+    // Remove series for indicators no longer active
+    for (const [id, series] of indicatorSeriesRef.current.entries()) {
+      if (!activeIds.has(id)) {
+        try {
+          chart.removeSeries(series);
+        } catch {
+          // ignore
+        }
+        indicatorSeriesRef.current.delete(id);
+      }
+    }
+
+    const candles = candlesDataRef.current;
+    if (candles.length === 0) return;
+
+    const ctx = candlesToContext(
+      candles.map((c) => ({ ...c, volume: 0 }))
+    );
+    // Hydrate volumes from volumesDataRef for VWMA-style expressions
+    const volumes = volumesDataRef.current;
+    for (let i = 0; i < ctx.volume.length && i < volumes.length; i++) {
+      ctx.volume[i] = volumes[i]?.value ?? 0;
+    }
+
+    for (const ind of active) {
+      const compiled = compileExpression(ind.expression);
+      if (!compiled.ok || !compiled.run) continue;
+      let values: (number | null)[];
+      try {
+        values = compiled.run(ctx);
+      } catch {
+        continue;
+      }
+
+      const points = values
+        .map((v, i) =>
+          v === null
+            ? null
+            : { time: candles[i].time, value: v }
+        )
+        .filter((p): p is { time: number; value: number } => p !== null);
+
+      let series = indicatorSeriesRef.current.get(ind.id);
+      if (!series) {
+        try {
+          series = chart.addSeries(mod.LineSeries, {
+            color: ind.color,
+            lineWidth: 2,
+            lastValueVisible: true,
+            priceLineVisible: false,
+            crosshairMarkerVisible: false,
+            title: ind.name,
+          });
+          indicatorSeriesRef.current.set(ind.id, series);
+        } catch {
+          continue;
+        }
+      } else {
+        try {
+          series.applyOptions({ color: ind.color, title: ind.name });
+        } catch {
+          // ignore
+        }
+      }
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        series.setData(points as any);
+      } catch {
+        // ignore
+      }
+    }
+  }, [indicators, candlesVersion]);
 
   // Click-to-draw handling — subscribe to chart clicks when tool is trendline/level
   useEffect(() => {
@@ -535,16 +634,20 @@ export function PriceChart() {
       };
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       candleSeriesRef.current.update(newCandle as any);
-      volumeSeriesRef.current.update({
+      const newVolume: VolumeData = {
         time: candleTime,
         value: 0,
         color:
           price >= last.close
             ? "rgba(0,255,255,0.25)"
             : "rgba(255,115,76,0.25)",
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      } as any);
+      };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      volumeSeriesRef.current.update(newVolume as any);
       lastCandleRef.current = newCandle;
+      candlesDataRef.current = [...candlesDataRef.current, newCandle];
+      volumesDataRef.current = [...volumesDataRef.current, newVolume];
+      setCandlesVersion((v) => v + 1);
     } else {
       const updated: CandleData = {
         ...last,
@@ -556,6 +659,8 @@ export function PriceChart() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       candleSeriesRef.current.update(updated as any);
       lastCandleRef.current = updated;
+      const arr = candlesDataRef.current;
+      if (arr.length > 0) arr[arr.length - 1] = updated;
     }
   }, [price]);
 
