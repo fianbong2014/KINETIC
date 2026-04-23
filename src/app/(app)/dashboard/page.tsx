@@ -29,7 +29,7 @@ export default function DashboardPage() {
 
       {/* Middle Col: Chart + Open Positions */}
       <div className="col-span-12 xl:col-span-6 flex flex-col gap-3 lg:gap-6 order-2 xl:order-2">
-        <div className="flex-1 min-h-[360px] lg:min-h-[400px]">
+        <div className="flex-1 flex flex-col min-h-[480px] md:min-h-[560px] lg:min-h-[640px]">
           <PriceChart />
         </div>
         <OpenPositions />

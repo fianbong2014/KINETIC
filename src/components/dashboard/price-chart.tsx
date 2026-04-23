@@ -5,12 +5,24 @@ import { usePrice } from "@/components/providers/price-provider";
 import { useFundingRate } from "@/hooks/use-funding-rate";
 import { usePositions } from "@/hooks/use-positions";
 import {
-  Camera,
   Maximize2,
-  Pencil,
+  Minimize2,
+  Minus,
   TrendingUp,
-  ArrowUpRight,
+  Trash2,
+  X,
 } from "lucide-react";
+import {
+  loadDrawings,
+  addDrawing,
+  removeDrawing,
+  clearDrawings,
+  generateId,
+  pickColor,
+  type Drawing,
+  type HorizontalLevel,
+  type TrendLine,
+} from "@/lib/drawings";
 
 interface CandleData {
   time: number;
@@ -68,8 +80,17 @@ async function fetchKlines(
   return { candles, volumes };
 }
 
+type DrawTool = "none" | "level" | "trendline";
+
 export function PriceChart() {
   const [activeTimeframe, setActiveTimeframe] = useState("1H");
+  const [fullscreen, setFullscreen] = useState(false);
+  const [tool, setTool] = useState<DrawTool>("none");
+  const [drawings, setDrawings] = useState<Drawing[]>([]);
+  const [pendingPoint, setPendingPoint] = useState<
+    { time: number; price: number } | null
+  >(null);
+
   const { price, priceChangePercent24h, high24h, low24h, symbol, pair } =
     usePrice();
   const { positions } = usePositions("active");
@@ -83,9 +104,19 @@ export function PriceChart() {
   const volumeSeriesRef = useRef<any>(null);
   const lastCandleRef = useRef<CandleData | null>(null);
   const currentIntervalRef = useRef("1h");
-  // Track price lines per position id so we can add/remove cleanly on change
+
+  // Track price lines per position id
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const priceLinesRef = useRef<Map<string, any[]>>(new Map());
+  const positionLinesRef = useRef<Map<string, any[]>>(new Map());
+  // Track price line objects by drawing id (for horizontal levels)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const levelLinesRef = useRef<Map<string, any>>(new Map());
+  // Track LineSeries objects by drawing id (for trend lines)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const trendSeriesRef = useRef<Map<string, any>>(new Map());
+  // Module reference used for adding trend line series after mount
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const lwcModuleRef = useRef<any>(null);
 
   // Load kline data — defined before useEffect so it can be called during init
   const loadData = useCallback(
@@ -93,7 +124,9 @@ export function PriceChart() {
       try {
         const { candles, volumes } = await fetchKlines(sym, interval, limit);
         if (candleSeriesRef.current && volumeSeriesRef.current) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           candleSeriesRef.current.setData(candles as any);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           volumeSeriesRef.current.setData(volumes as any);
           lastCandleRef.current = candles[candles.length - 1] || null;
           currentIntervalRef.current = interval;
@@ -106,6 +139,11 @@ export function PriceChart() {
     []
   );
 
+  // Hydrate drawings from localStorage on symbol change
+  useEffect(() => {
+    setDrawings(loadDrawings(symbol));
+  }, [symbol]);
+
   // Initialize chart
   useEffect(() => {
     const container = chartContainerRef.current;
@@ -114,11 +152,18 @@ export function PriceChart() {
     let isMounted = true;
     let ro: ResizeObserver | null = null;
 
-    import("lightweight-charts").then(({ createChart, ColorType, CrosshairMode, CandlestickSeries, HistogramSeries }) => {
-      // Bail out if component unmounted while we were importing
-      if (!isMounted || !chartContainerRef.current) return;
+    import("lightweight-charts").then((mod) => {
+      const {
+        createChart,
+        ColorType,
+        CrosshairMode,
+        CandlestickSeries,
+        HistogramSeries,
+      } = mod;
 
-      // Clear any leftover content from a previous chart instance
+      if (!isMounted || !chartContainerRef.current) return;
+      lwcModuleRef.current = mod;
+
       chartContainerRef.current.innerHTML = "";
 
       const chart = createChart(chartContainerRef.current, {
@@ -202,9 +247,163 @@ export function PriceChart() {
       candleSeriesRef.current = null;
       volumeSeriesRef.current = null;
       lastCandleRef.current = null;
-      priceLinesRef.current.clear();
+      positionLinesRef.current.clear();
+      levelLinesRef.current.clear();
+      trendSeriesRef.current.clear();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadData]);
+
+  // Click-to-draw handling — subscribe to chart clicks when tool is trendline/level
+  useEffect(() => {
+    const chart = chartRef.current;
+    const candleSeries = candleSeriesRef.current;
+    if (!chart || !candleSeries) return;
+
+    if (tool === "none") return;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const handler = (param: any) => {
+      if (!param.point || !param.time) return;
+      const price = candleSeries.coordinateToPrice(param.point.y);
+      if (price === null || price === undefined) return;
+
+      const time = Number(param.time);
+
+      if (tool === "level") {
+        const level: HorizontalLevel = {
+          id: generateId(),
+          type: "level",
+          symbol,
+          price,
+          label: `L${drawings.filter((d) => d.type === "level").length + 1}`,
+          color: pickColor(drawings.length),
+        };
+        const next = addDrawing(symbol, level);
+        setDrawings(next);
+        setTool("none");
+        return;
+      }
+
+      if (tool === "trendline") {
+        if (!pendingPoint) {
+          setPendingPoint({ time, price });
+        } else {
+          // Second click — create the line
+          const p1 = pendingPoint;
+          const p2 = { time, price };
+          // Ensure chronological order for LineSeries
+          const [first, second] =
+            p1.time <= p2.time ? [p1, p2] : [p2, p1];
+          const line: TrendLine = {
+            id: generateId(),
+            type: "trendline",
+            symbol,
+            p1: first,
+            p2: second,
+            color: pickColor(drawings.length),
+          };
+          const next = addDrawing(symbol, line);
+          setDrawings(next);
+          setPendingPoint(null);
+          setTool("none");
+        }
+      }
+    };
+
+    chart.subscribeClick(handler);
+    return () => {
+      chart.unsubscribeClick(handler);
+    };
+  }, [tool, symbol, drawings, pendingPoint]);
+
+  // Sync horizontal levels with chart (create/remove price lines)
+  useEffect(() => {
+    const series = candleSeriesRef.current;
+    if (!series) return;
+
+    const levels = drawings.filter(
+      (d): d is HorizontalLevel => d.type === "level" && d.symbol === symbol
+    );
+    const activeIds = new Set(levels.map((l) => l.id));
+
+    // Remove lines that no longer exist
+    for (const [id, line] of levelLinesRef.current.entries()) {
+      if (!activeIds.has(id)) {
+        try {
+          series.removePriceLine(line);
+        } catch {
+          // ignore
+        }
+        levelLinesRef.current.delete(id);
+      }
+    }
+
+    // Add/update
+    for (const level of levels) {
+      if (levelLinesRef.current.has(level.id)) continue;
+      try {
+        const line = series.createPriceLine({
+          price: level.price,
+          color: level.color,
+          lineWidth: 2,
+          lineStyle: 0, // solid
+          axisLabelVisible: true,
+          title: level.label,
+        });
+        levelLinesRef.current.set(level.id, line);
+      } catch {
+        // ignore
+      }
+    }
+  }, [drawings, symbol]);
+
+  // Sync trend lines as LineSeries
+  useEffect(() => {
+    const chart = chartRef.current;
+    const mod = lwcModuleRef.current;
+    if (!chart || !mod) return;
+
+    const lines = drawings.filter(
+      (d): d is TrendLine => d.type === "trendline" && d.symbol === symbol
+    );
+    const activeIds = new Set(lines.map((l) => l.id));
+
+    // Remove outdated
+    for (const [id, series] of trendSeriesRef.current.entries()) {
+      if (!activeIds.has(id)) {
+        try {
+          chart.removeSeries(series);
+        } catch {
+          // ignore
+        }
+        trendSeriesRef.current.delete(id);
+      }
+    }
+
+    // Add new
+    for (const line of lines) {
+      if (trendSeriesRef.current.has(line.id)) continue;
+      try {
+        const series = chart.addSeries(mod.LineSeries, {
+          color: line.color,
+          lineWidth: 2,
+          lineStyle: 0,
+          lastValueVisible: false,
+          priceLineVisible: false,
+          crosshairMarkerVisible: false,
+        });
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        series.setData([
+          { time: line.p1.time, value: line.p1.price },
+          { time: line.p2.time, value: line.p2.price },
+        ] as any);
+        trendSeriesRef.current.set(line.id, series);
+      } catch {
+        // ignore
+      }
+    }
+  }, [drawings, symbol]);
 
   // Switch timeframe
   const handleTimeframeChange = useCallback(
@@ -224,8 +423,7 @@ export function PriceChart() {
   }, [symbol, activeTimeframe, loadData]);
 
   // Sync price lines (entry / SL / TP) for active positions matching the
-  // currently selected pair. Re-runs whenever the positions list or symbol
-  // changes. Lines are removed when their position closes or is deleted.
+  // currently selected pair.
   useEffect(() => {
     const series = candleSeriesRef.current;
     if (!series) return;
@@ -235,8 +433,7 @@ export function PriceChart() {
     );
     const activeIds = new Set(relevant.map((p) => p.id));
 
-    // Remove lines for positions that are no longer relevant
-    for (const [id, lines] of priceLinesRef.current.entries()) {
+    for (const [id, lines] of positionLinesRef.current.entries()) {
       if (!activeIds.has(id)) {
         for (const line of lines) {
           try {
@@ -245,15 +442,13 @@ export function PriceChart() {
             // already removed
           }
         }
-        priceLinesRef.current.delete(id);
+        positionLinesRef.current.delete(id);
       }
     }
 
-    // Add/update lines for each active position
     for (const pos of relevant) {
-      const existing = priceLinesRef.current.get(pos.id);
+      const existing = positionLinesRef.current.get(pos.id);
       if (existing) {
-        // Remove old lines before re-adding (simpler than diffing prices)
         for (const line of existing) {
           try {
             series.removePriceLine(line);
@@ -271,7 +466,7 @@ export function PriceChart() {
           price: pos.entry,
           color: sideColor,
           lineWidth: 1,
-          lineStyle: 2, // dashed
+          lineStyle: 2,
           axisLabelVisible: true,
           title: `${pos.side} ${pos.size}`,
         })
@@ -283,7 +478,7 @@ export function PriceChart() {
             price: pos.stopLoss,
             color: "#ff716c",
             lineWidth: 1,
-            lineStyle: 3, // dotted
+            lineStyle: 3,
             axisLabelVisible: true,
             title: "SL",
           })
@@ -296,14 +491,14 @@ export function PriceChart() {
             price: pos.takeProfit,
             color: "#50c878",
             lineWidth: 1,
-            lineStyle: 3, // dotted
+            lineStyle: 3,
             axisLabelVisible: true,
             title: "TP",
           })
         );
       }
 
-      priceLinesRef.current.set(pos.id, lines);
+      positionLinesRef.current.set(pos.id, lines);
     }
   }, [positions, symbol]);
 
@@ -320,7 +515,6 @@ export function PriceChart() {
     const last = lastCandleRef.current;
     const now = Math.floor(Date.now() / 1000);
 
-    // Determine candle interval in seconds
     const intervalMap: Record<string, number> = {
       "1m": 60,
       "15m": 900,
@@ -332,7 +526,6 @@ export function PriceChart() {
     const candleTime = Math.floor(now / intervalSec) * intervalSec;
 
     if (candleTime > last.time) {
-      // New candle
       const newCandle: CandleData = {
         time: candleTime,
         open: price,
@@ -340,6 +533,7 @@ export function PriceChart() {
         low: price,
         close: price,
       };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       candleSeriesRef.current.update(newCandle as any);
       volumeSeriesRef.current.update({
         time: candleTime,
@@ -348,10 +542,10 @@ export function PriceChart() {
           price >= last.close
             ? "rgba(0,255,255,0.25)"
             : "rgba(255,115,76,0.25)",
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any);
       lastCandleRef.current = newCandle;
     } else {
-      // Update current candle
       const updated: CandleData = {
         ...last,
         time: last.time,
@@ -359,26 +553,70 @@ export function PriceChart() {
         low: Math.min(last.low, price),
         close: price,
       };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       candleSeriesRef.current.update(updated as any);
       lastCandleRef.current = updated;
     }
   }, [price]);
+
+  // Toggle fullscreen — apply body scroll lock while active
+  useEffect(() => {
+    if (fullscreen) {
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = "";
+      };
+    }
+  }, [fullscreen]);
+
+  const handleRemoveDrawing = useCallback(
+    (id: string) => {
+      const next = removeDrawing(symbol, id);
+      setDrawings(next);
+    },
+    [symbol]
+  );
+
+  const handleClearAllDrawings = useCallback(() => {
+    if (drawings.length === 0) return;
+    if (!confirm(`Clear all ${drawings.length} drawings on ${pair.display}?`))
+      return;
+    clearDrawings(symbol);
+    setDrawings([]);
+  }, [symbol, drawings.length, pair.display]);
+
+  const cancelTool = useCallback(() => {
+    setTool("none");
+    setPendingPoint(null);
+  }, []);
 
   // Price info for header
   const changeColor =
     (priceChangePercent24h ?? 0) >= 0 ? "text-cyan" : "text-orange";
   const changeSign = (priceChangePercent24h ?? 0) >= 0 ? "+" : "";
 
+  const activeDrawings = drawings.filter((d) => d.symbol === symbol);
+  const levelsCount = activeDrawings.filter(
+    (d) => d.type === "level"
+  ).length;
+  const trendsCount = activeDrawings.filter(
+    (d) => d.type === "trendline"
+  ).length;
+
+  const containerClasses = fullscreen
+    ? "fixed inset-0 z-[60] bg-surface-container-low flex flex-col"
+    : "flex-1 bg-surface-container-low relative overflow-hidden flex flex-col border border-outline-variant/10 min-h-0";
+
   return (
-    <div className="flex-1 bg-surface-container-low relative overflow-hidden flex flex-col border border-outline-variant/10 min-h-0">
+    <div className={containerClasses}>
       {/* Chart Header */}
-      <div className="p-3 lg:p-4 flex justify-between items-center bg-surface-container-high/50 backdrop-blur-sm z-10 shrink-0">
-        <div className="flex items-center gap-4">
-          <div className="flex flex-col">
-            <span className="text-lg font-heading font-black text-on-surface">
+      <div className="p-3 lg:p-4 flex justify-between items-center bg-surface-container-high/50 backdrop-blur-sm z-10 shrink-0 gap-2">
+        <div className="flex items-center gap-2 lg:gap-4 min-w-0">
+          <div className="flex flex-col min-w-0">
+            <span className="text-sm lg:text-lg font-heading font-black text-on-surface truncate">
               {pair.base} / {pair.quote}
             </span>
-            <span className="text-[10px] text-on-surface-variant font-bold uppercase tracking-widest">
+            <span className="text-[9px] lg:text-[10px] text-on-surface-variant font-bold uppercase tracking-widest">
               Binance Spot
             </span>
           </div>
@@ -407,7 +645,7 @@ export function PriceChart() {
               <button
                 key={tf.label}
                 onClick={() => handleTimeframeChange(tf)}
-                className={`px-2 lg:px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-widest transition-colors ${
+                className={`px-1.5 lg:px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-widest transition-colors ${
                   activeTimeframe === tf.label
                     ? "text-on-surface border-b-2 border-cyan"
                     : "text-on-surface-variant hover:text-on-surface"
@@ -420,7 +658,7 @@ export function PriceChart() {
         </div>
 
         {/* Right side info */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 lg:gap-3">
           {high24h > 0 && (
             <div className="hidden xl:flex items-center gap-4 text-[10px] font-bold tabular-nums mr-2">
               <span className="text-on-surface-variant">
@@ -437,33 +675,186 @@ export function PriceChart() {
               </span>
             </div>
           )}
-          <button className="p-1.5 text-on-surface-variant hover:text-on-surface transition-colors">
-            <Camera size={14} />
-          </button>
-          <button className="p-1.5 text-on-surface-variant hover:text-on-surface transition-colors">
-            <Maximize2 size={14} />
+          <button
+            onClick={() => setFullscreen((v) => !v)}
+            aria-label={fullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+            className="p-1.5 text-on-surface-variant hover:text-on-surface transition-colors"
+          >
+            {fullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
           </button>
         </div>
       </div>
+
+      {/* Drawing-mode banner */}
+      {tool !== "none" && (
+        <div className="px-3 py-2 bg-cyan/10 border-b border-cyan/30 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-[11px] text-cyan font-bold tracking-wider uppercase">
+            {tool === "level" && <Minus size={12} />}
+            {tool === "trendline" && <TrendingUp size={12} />}
+            <span>
+              {tool === "level"
+                ? "Click chart to place horizontal level"
+                : pendingPoint
+                  ? "Click second point to complete trend line"
+                  : "Click first point for trend line"}
+            </span>
+          </div>
+          <button
+            onClick={cancelTool}
+            className="flex items-center gap-1 text-[10px] text-on-surface-variant hover:text-on-surface font-bold tracking-wider uppercase"
+          >
+            <X size={12} /> Cancel
+          </button>
+        </div>
+      )}
 
       {/* Chart Container */}
-      <div ref={chartContainerRef} className="flex-1 min-h-[250px]" />
+      <div
+        ref={chartContainerRef}
+        className={`flex-1 ${tool !== "none" ? "cursor-crosshair" : ""}`}
+        style={{ minHeight: fullscreen ? 0 : 400 }}
+      />
 
       {/* Chart Footer / Tools Bar */}
-      <div className="p-2 flex items-center justify-between bg-surface-container-high border-t border-outline-variant/10 shrink-0">
-        <div className="flex gap-1">
-          <button className="p-1.5 text-on-surface-variant hover:text-on-surface transition-colors">
-            <Pencil size={13} />
-          </button>
-          <button className="p-1.5 text-on-surface-variant hover:text-on-surface transition-colors">
+      <div className="p-2 flex items-center justify-between bg-surface-container-high border-t border-outline-variant/10 shrink-0 gap-2 flex-wrap">
+        {/* Drawing tools */}
+        <div className="flex items-center gap-1">
+          <ToolButton
+            active={tool === "level"}
+            onClick={() => setTool(tool === "level" ? "none" : "level")}
+            title="Horizontal level"
+          >
+            <Minus size={13} />
+            <span className="hidden sm:inline text-[10px] font-bold">
+              LEVEL
+            </span>
+          </ToolButton>
+          <ToolButton
+            active={tool === "trendline"}
+            onClick={() => {
+              if (tool === "trendline") {
+                cancelTool();
+              } else {
+                setTool("trendline");
+                setPendingPoint(null);
+              }
+            }}
+            title="Trend line"
+          >
             <TrendingUp size={13} />
-          </button>
-          <button className="p-1.5 text-on-surface-variant hover:text-on-surface transition-colors">
-            <ArrowUpRight size={13} />
-          </button>
+            <span className="hidden sm:inline text-[10px] font-bold">
+              TREND
+            </span>
+          </ToolButton>
+
+          {activeDrawings.length > 0 && (
+            <>
+              <div className="h-4 w-[1px] bg-outline-variant mx-1" />
+              <span className="text-[9px] text-on-surface-variant font-bold tracking-wider uppercase">
+                {levelsCount} L · {trendsCount} T
+              </span>
+              <button
+                onClick={handleClearAllDrawings}
+                title="Clear all drawings"
+                className="p-1.5 text-on-surface-variant hover:text-crimson transition-colors"
+              >
+                <Trash2 size={13} />
+              </button>
+            </>
+          )}
         </div>
+
+        {/* Funding rate */}
         <FundingRateInline symbol={symbol} />
       </div>
+
+      {/* Drawings list popover — only when there are drawings */}
+      {activeDrawings.length > 0 && (
+        <DrawingList
+          drawings={activeDrawings}
+          onRemove={handleRemoveDrawing}
+        />
+      )}
+    </div>
+  );
+}
+
+function ToolButton({
+  active,
+  onClick,
+  title,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      className={`flex items-center gap-1.5 px-2 py-1.5 transition-colors ${
+        active
+          ? "bg-cyan/20 text-cyan"
+          : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function DrawingList({
+  drawings,
+  onRemove,
+}: {
+  drawings: Drawing[];
+  onRemove: (id: string) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div className="absolute top-16 right-3 z-10 max-w-[200px]">
+      <button
+        onClick={() => setExpanded((v) => !v)}
+        className="bg-surface-container-high/80 backdrop-blur-sm px-2 py-1 text-[10px] font-bold tracking-wider uppercase text-on-surface-variant hover:text-on-surface transition-colors"
+      >
+        {drawings.length} Drawing{drawings.length !== 1 ? "s" : ""}
+      </button>
+      {expanded && (
+        <div className="mt-1 bg-surface-container-high/95 backdrop-blur-sm border border-outline-variant/10 flex flex-col gap-0.5 p-1 max-h-[200px] overflow-auto">
+          {drawings.map((d) => (
+            <div
+              key={d.id}
+              className="flex items-center justify-between gap-2 p-1.5 hover:bg-surface-container-highest"
+            >
+              <div className="flex items-center gap-2 min-w-0 flex-1">
+                <span
+                  className="w-2 h-2 shrink-0"
+                  style={{ backgroundColor: d.color }}
+                />
+                <span className="text-[10px] text-on-surface truncate">
+                  {d.type === "level"
+                    ? `${d.label} · $${d.price.toLocaleString(undefined, { maximumFractionDigits: 2 })}`
+                    : `Trend · ${(
+                        (d.p2.price - d.p1.price) /
+                        d.p1.price *
+                        100
+                      ).toFixed(2)}%`}
+                </span>
+              </div>
+              <button
+                onClick={() => onRemove(d.id)}
+                className="text-on-surface-variant hover:text-crimson"
+                aria-label="Remove"
+              >
+                <X size={10} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
