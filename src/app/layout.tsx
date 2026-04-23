@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, Space_Grotesk, Roboto_Mono } from "next/font/google";
 import { SessionProvider } from "@/components/providers/session-provider";
 import { ToastProvider } from "@/components/providers/toast-provider";
@@ -23,6 +23,22 @@ export const metadata: Metadata = {
   title: "KINETIC // Trading Terminal",
   description:
     "High-fidelity trading terminal for signal analysis and risk management",
+  applicationName: "KINETIC",
+  appleWebApp: {
+    capable: true,
+    title: "KINETIC",
+    statusBarStyle: "black-translucent",
+  },
+  formatDetection: {
+    telephone: false,
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0e0e0f",
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({

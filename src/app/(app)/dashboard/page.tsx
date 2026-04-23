@@ -4,24 +4,27 @@ import { OpenPositions } from "@/components/dashboard/open-positions";
 import { TradeExecution } from "@/components/dashboard/trade-execution";
 import { RiskControl } from "@/components/dashboard/risk-control";
 import { SignalLogic } from "@/components/dashboard/signal-logic";
+import { AlertCenter } from "@/components/dashboard/alert-center";
 import { PositionMonitor } from "@/components/dashboard/position-monitor";
+import { AlertMonitor } from "@/components/dashboard/alert-monitor";
 
 export default function DashboardPage() {
   return (
     <div className="grid grid-cols-12 gap-3 lg:gap-6">
-      {/* Renderless: auto-closes positions when SL/TP is hit */}
+      {/* Renderless: auto-close positions on SL/TP hit + fire price alerts */}
       <PositionMonitor />
+      <AlertMonitor />
 
-      {/* Mobile-only: Trade Execution pinned near the top so users can place
-          orders without scrolling past the chart. */}
+      {/* Mobile-only: Trade Execution pinned near the top */}
       <div className="col-span-12 xl:hidden order-1">
         <TradeExecution />
       </div>
 
-      {/* Left Col: Risk & Signal Analysis */}
+      {/* Left Col: Risk, Signal, Alerts */}
       <div className="col-span-12 xl:col-span-3 flex flex-col gap-3 lg:gap-6 order-3 xl:order-1">
         <RiskControl />
         <SignalLogic />
+        <AlertCenter />
       </div>
 
       {/* Middle Col: Chart + Open Positions */}

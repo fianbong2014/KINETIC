@@ -1,7 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import { useOrderBook, type DepthLevel } from "@/hooks/use-order-book";
 import { usePrice } from "@/components/providers/price-provider";
+import { CreateAlertDialog } from "@/components/dashboard/create-alert-dialog";
 import { formatPrice } from "@/lib/format";
 
 const DISPLAY_LEVELS = 8; // rows to show per side
@@ -10,6 +12,7 @@ export function OrderBook() {
   const { symbol, pair } = usePrice();
   const { bids, asks, bestBid, bestAsk, spread, spreadPct, isConnected } =
     useOrderBook(symbol, 20);
+  const [alertPrice, setAlertPrice] = useState<number | null>(null);
 
   // Trim to DISPLAY_LEVELS per side
   const visibleBids = bids.slice(0, DISPLAY_LEVELS);
@@ -64,6 +67,7 @@ export function OrderBook() {
                 maxQty={maxQty}
                 side="ask"
                 pair={pair}
+                onAlertClick={() => setAlertPrice(ask.price)}
               />
             ))
           )}
@@ -93,11 +97,19 @@ export function OrderBook() {
                 maxQty={maxQty}
                 side="bid"
                 pair={pair}
+                onAlertClick={() => setAlertPrice(bid.price)}
               />
             ))
           )}
         </div>
       </div>
+
+      {alertPrice !== null && (
+        <CreateAlertDialog
+          prefilledPrice={alertPrice}
+          onClose={() => setAlertPrice(null)}
+        />
+      )}
     </section>
   );
 }
@@ -107,18 +119,23 @@ function DepthRow({
   maxQty,
   side,
   pair,
+  onAlertClick,
 }: {
   level: DepthLevel;
   maxQty: number;
   side: "bid" | "ask";
   pair: { priceDecimals: number; sizeDecimals: number };
+  onAlertClick: () => void;
 }) {
   const width = Math.min(100, (level.quantity / maxQty) * 100);
   const isBid = side === "bid";
 
   return (
-    <div
-      className={`relative flex justify-between py-0.5 ${
+    <button
+      type="button"
+      onClick={onAlertClick}
+      title="Click to set alert at this price"
+      className={`relative flex justify-between py-0.5 w-full text-left hover:bg-surface-container/40 cursor-pointer ${
         isBid ? "text-cyan" : "text-orange"
       }`}
     >
@@ -140,6 +157,6 @@ function DepthRow({
           maximumFractionDigits: Math.min(pair.sizeDecimals, 4),
         })}
       </span>
-    </div>
+    </button>
   );
 }
