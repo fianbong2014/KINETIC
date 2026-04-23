@@ -965,12 +965,21 @@ function DrawingList({
 }
 
 function FundingRateInline({ symbol }: { symbol: string }) {
-  const { fundingRate, nextFundingTime, loading } = useFundingRate(symbol);
+  const { fundingRate, nextFundingTime, loading, unavailable } =
+    useFundingRate(symbol);
 
   if (loading) {
     return (
       <span className="text-[10px] font-mono tabular-nums text-on-surface-variant">
         FUNDING: —
+      </span>
+    );
+  }
+
+  if (unavailable) {
+    return (
+      <span className="text-[10px] font-mono tabular-nums text-on-surface-variant/60">
+        SPOT ONLY
       </span>
     );
   }

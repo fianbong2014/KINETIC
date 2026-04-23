@@ -7,7 +7,11 @@ import { useFundingRate } from "@/hooks/use-funding-rate";
 export function MarketStats() {
   const { high24h, low24h, volume24h, priceChangePercent24h, symbol } =
     usePrice();
-  const { fundingRate, loading: fundingLoading } = useFundingRate(symbol);
+  const {
+    fundingRate,
+    loading: fundingLoading,
+    unavailable: fundingUnavailable,
+  } = useFundingRate(symbol);
 
   const fundingPct = fundingRate * 100;
 
@@ -42,9 +46,12 @@ export function MarketStats() {
       label: "FUNDING",
       value: fundingLoading
         ? "---"
-        : `${fundingPct >= 0 ? "+" : ""}${fundingPct.toFixed(4)}%`,
-      color:
-        !fundingLoading && fundingPct >= 0
+        : fundingUnavailable
+          ? "SPOT ONLY"
+          : `${fundingPct >= 0 ? "+" : ""}${fundingPct.toFixed(4)}%`,
+      color: fundingUnavailable
+        ? "text-on-surface-variant/60"
+        : !fundingLoading && fundingPct >= 0
           ? "text-emerald-accent"
           : "text-crimson",
     },

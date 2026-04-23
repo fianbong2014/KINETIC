@@ -13,6 +13,9 @@ export const PAIRS: TradingPair[] = [
   { symbol: "SOLUSDT", base: "SOL", quote: "USDT", display: "SOL/USD", priceDecimals: 2, sizeDecimals: 2 },
   { symbol: "BNBUSDT", base: "BNB", quote: "USDT", display: "BNB/USD", priceDecimals: 2, sizeDecimals: 3 },
   { symbol: "XRPUSDT", base: "XRP", quote: "USDT", display: "XRP/USD", priceDecimals: 4, sizeDecimals: 1 },
+  // Tokenized gold — 1 token = 1 troy ounce
+  { symbol: "PAXGUSDT", base: "PAXG", quote: "USDT", display: "PAXG/USD", priceDecimals: 2, sizeDecimals: 4 },
+  { symbol: "XAUTUSDT", base: "XAUT", quote: "USDT", display: "XAUT/USD", priceDecimals: 2, sizeDecimals: 4 },
 ];
 
 export function getPair(symbol: string): TradingPair {

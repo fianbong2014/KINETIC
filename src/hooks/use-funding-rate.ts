@@ -7,6 +7,9 @@ export interface FundingRateData {
   nextFundingTime: number;   // ms timestamp
   markPrice: number;
   loading: boolean;
+  // True if the symbol has no Futures market (spot-only pairs like
+  // PAXG/XAUT) — lets consumers render "—" instead of a misleading 0%.
+  unavailable: boolean;
 }
 
 const BINANCE_FAPI = "https://fapi.binance.com/fapi/v1";
@@ -24,6 +27,7 @@ export function useFundingRate(symbol: string): FundingRateData {
     nextFundingTime: 0,
     markPrice: 0,
     loading: true,
+    unavailable: false,
   });
 
   useEffect(() => {
@@ -34,6 +38,18 @@ export function useFundingRate(symbol: string): FundingRateData {
         const res = await fetch(
           `${BINANCE_FAPI}/premiumIndex?symbol=${symbol}`
         );
+        // 400 from fapi = symbol doesn't exist on Futures (spot-only pair)
+        if (res.status === 400) {
+          if (cancelled) return;
+          setState({
+            fundingRate: 0,
+            nextFundingTime: 0,
+            markPrice: 0,
+            loading: false,
+            unavailable: true,
+          });
+          return;
+        }
         if (!res.ok) throw new Error("Failed");
         const data = await res.json();
         if (cancelled) return;
@@ -42,6 +58,7 @@ export function useFundingRate(symbol: string): FundingRateData {
           nextFundingTime: parseInt(data.nextFundingTime),
           markPrice: parseFloat(data.markPrice),
           loading: false,
+          unavailable: false,
         });
       } catch {
         if (cancelled) return;
@@ -49,7 +66,7 @@ export function useFundingRate(symbol: string): FundingRateData {
       }
     }
 
-    setState((prev) => ({ ...prev, loading: true }));
+    setState((prev) => ({ ...prev, loading: true, unavailable: false }));
     fetchOnce();
     const id = setInterval(fetchOnce, 30000);
 
