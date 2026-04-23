@@ -2,6 +2,7 @@ import { SignalHeader } from "@/components/signals/signal-header";
 import { SignalDetails } from "@/components/signals/signal-details";
 import { TradePlan } from "@/components/signals/trade-plan";
 import { SignalNarrative } from "@/components/signals/signal-narrative";
+import { TimeframeAlignment } from "@/components/signals/timeframe-alignment";
 import { AlertTriangle } from "lucide-react";
 
 export default function SignalsPage() {
@@ -21,7 +22,7 @@ export default function SignalsPage() {
             <div className="flex items-center gap-3 min-w-0">
               <AlertTriangle className="w-5 h-5 text-on-primary-container shrink-0" />
               <span className="text-[10px] sm:text-sm font-bold text-on-primary-container tracking-wider uppercase truncate">
-                Potential Entry Detected
+                Multi-Timeframe Scan Active
               </span>
             </div>
             <button className="bg-primary text-on-primary text-[10px] font-bold tracking-wider uppercase px-3 sm:px-4 py-2 hover:opacity-90 transition-opacity shrink-0">
@@ -29,7 +30,10 @@ export default function SignalsPage() {
             </button>
           </div>
 
-          {/* Zone Analysis + Technical Alpha */}
+          {/* Multi-Timeframe Alignment — new panel */}
+          <TimeframeAlignment />
+
+          {/* Zone Analysis + Technical Alpha (4H detail) */}
           <SignalDetails />
 
           {/* Signal Narrative */}
@@ -58,8 +62,8 @@ export default function SignalsPage() {
       {/* Terminal Log */}
       <div className="bg-surface-container-lowest p-3 sm:p-4 border border-outline-variant/5">
         <span className="text-[10px] font-mono text-on-surface-variant break-all">
-          [SYSTEM] SIGNAL_SCANNER::NEW_CONFLUENCE_DETECTED_AT_08:42:01_UTC SUCCESS
-          KINETIC_CORE_V2.0.4
+          [SYSTEM] MTF_SIGNAL_SCANNER::1H_4H_1D_CONVERGENCE_DETECTED SUCCESS
+          KINETIC_CORE_V2.1.0
         </span>
       </div>
     </div>
