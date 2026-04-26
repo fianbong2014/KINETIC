@@ -5,8 +5,10 @@ import { TradeExecution } from "@/components/dashboard/trade-execution";
 import { RiskControl } from "@/components/dashboard/risk-control";
 import { SignalLogic } from "@/components/dashboard/signal-logic";
 import { AlertCenter } from "@/components/dashboard/alert-center";
+import { Watchlist } from "@/components/dashboard/watchlist";
 import { PositionMonitor } from "@/components/dashboard/position-monitor";
 import { AlertMonitor } from "@/components/dashboard/alert-monitor";
+import { DailyBriefing } from "@/components/dashboard/daily-briefing";
 
 export default function DashboardPage() {
   return (
@@ -15,13 +17,17 @@ export default function DashboardPage() {
       <PositionMonitor />
       <AlertMonitor />
 
+      {/* Auto-opens once per day with overnight summary + top movers */}
+      <DailyBriefing />
+
       {/* Mobile-only: Trade Execution pinned near the top */}
       <div className="col-span-12 xl:hidden order-1">
         <TradeExecution />
       </div>
 
-      {/* Left Col: Risk, Signal, Alerts */}
+      {/* Left Col: Watchlist, Risk, Signal, Alerts */}
       <div className="col-span-12 xl:col-span-3 flex flex-col gap-3 lg:gap-6 order-3 xl:order-1">
+        <Watchlist />
         <RiskControl />
         <SignalLogic />
         <AlertCenter />
