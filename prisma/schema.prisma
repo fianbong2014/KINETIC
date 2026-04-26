@@ -28,6 +28,7 @@ model User {
   journalEntries JournalEntry[]
   priceAlerts   PriceAlert[]
   customIndicators CustomIndicator[]
+  tradingBots   TradingBot[]
 }
 
 model Account {
@@ -73,6 +74,7 @@ model VerificationToken {
 model Position {
   id               String    @id @default(cuid())
   userId           String
+  botId            String?   // null = manual trade, set = bot-placed
   asset            String    // "BTCUSDT"
   side             String    // "LONG" | "SHORT"
   size             Float
@@ -90,9 +92,54 @@ model Position {
   updatedAt        DateTime  @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bot  TradingBot? @relation(fields: [botId], references: [id], onDelete: SetNull)
 
   @@index([userId, status])
   @@index([userId, openedAt])
+  @@index([botId])
+}
+
+model TradingBot {
+  id              String    @id @default(cuid())
+  userId          String
+  name            String
+
+  // Symbol filter — empty = all configured pairs
+  symbols         String[]  @default([])
+
+  // Trigger
+  // mtf_aligned     — composite multi-TF bias matches `side` and confidence ≥ minConfidence
+  // single_tf_bias  — only `tfFilter` timeframe must match
+  // rsi_extreme     — fire on RSI overbought/oversold on `tfFilter`
+  triggerType     String    @default("mtf_aligned")
+  tfFilter        String    @default("4h")  // for single-TF / RSI triggers
+  minConfidence   Int       @default(70)    // 0–99
+
+  // Side preference: "ANY" follows bias, or force "LONG" / "SHORT"
+  side            String    @default("ANY")
+
+  // Trade params
+  positionSizePct Float     @default(5)     // % of paper balance per trade
+  stopLossPct     Float?                    // SL as % from entry (always positive)
+  takeProfitPct   Float?                    // TP as %
+  trailingPct     Float?                    // trailing stop %
+
+  // Concurrency
+  maxOpenPositions Int      @default(1)     // bot won't open if it already has N active
+  cooldownMinutes  Int      @default(60)    // wait N minutes after a trade before next
+
+  // State
+  enabled         Boolean   @default(true)
+  lastRunAt       DateTime?
+  lastTradeAt     DateTime?
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  positions Position[]
+
+  @@index([userId, enabled])
 }
 
 model PriceAlert {

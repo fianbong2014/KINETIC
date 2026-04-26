@@ -32,6 +32,7 @@ export async function POST(request: NextRequest) {
       stopLoss,
       takeProfit,
       trailingDistance,
+      botId,
     } = await request.json();
 
     if (!asset || !side || !size || !entry) {
@@ -41,9 +42,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // If botId provided, verify it belongs to this user before tagging
+    let validatedBotId: string | null = null;
+    if (botId) {
+      const bot = await db.tradingBot.findFirst({
+        where: { id: String(botId), userId: user!.id },
+        select: { id: true },
+      });
+      if (bot) validatedBotId = bot.id;
+    }
+
     const position = await db.position.create({
       data: {
         userId: user!.id,
+        botId: validatedBotId,
         asset,
         side,
         size,

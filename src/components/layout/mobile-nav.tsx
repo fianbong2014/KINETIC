@@ -2,14 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Terminal, BarChart3, Shield, BookOpen, Settings } from "lucide-react";
+import { Terminal, BarChart3, Bot, Shield, BookOpen } from "lucide-react";
 
 const navItems = [
   { icon: Terminal, label: "TERMINAL", href: "/dashboard" },
   { icon: BarChart3, label: "SIGNALS", href: "/signals" },
+  { icon: Bot, label: "BOTS", href: "/bots" },
   { icon: Shield, label: "RISK", href: "/risk" },
   { icon: BookOpen, label: "JOURNAL", href: "/journal" },
-  { icon: Settings, label: "SETTINGS", href: "/settings" },
 ];
 
 export function MobileNav() {

@@ -9,6 +9,7 @@ import {
   Settings,
   Zap,
   ArrowRight,
+  Bot,
 } from "lucide-react";
 
 const menuItems = [
@@ -29,6 +30,15 @@ const menuItems = [
     accent: "bg-emerald-accent/10 group-hover:bg-emerald-accent/20",
     iconColor: "text-emerald-accent",
     borderColor: "border-emerald-accent/20 group-hover:border-emerald-accent/40",
+  },
+  {
+    icon: Bot,
+    label: "Bots",
+    description: "Auto-execute trades when multi-timeframe signals align with your strategy",
+    href: "/bots",
+    accent: "bg-cyan/10 group-hover:bg-cyan/20",
+    iconColor: "text-cyan",
+    borderColor: "border-cyan/20 group-hover:border-cyan/40",
   },
   {
     icon: Shield,

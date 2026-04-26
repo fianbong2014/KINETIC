@@ -11,11 +11,13 @@ import {
   Zap,
   HelpCircle,
   Code,
+  Bot,
 } from "lucide-react";
 
 const navItems = [
   { icon: LayoutGrid, label: "Terminal", href: "/dashboard" },
   { icon: LineChart, label: "Analytics", href: "/signals" },
+  { icon: Bot, label: "Bots", href: "/bots" },
   { icon: Shield, label: "Command", href: "/risk" },
   { icon: FileText, label: "History", href: "/journal" },
   { icon: Settings, label: "Settings", href: "/settings" },
