@@ -10,11 +10,18 @@ import {
   Layers,
   Clock,
   Target,
+  Zap,
+  CheckCircle2,
+  XCircle,
+  AlertCircle,
 } from "lucide-react";
 import { useBots, type TradingBot } from "@/hooks/use-bots";
+import { useBotDiagnostics } from "@/hooks/use-bot-diagnostics";
+import { useBotEngineContext } from "@/components/providers/bot-engine-provider";
 import { useToast } from "@/components/providers/toast-provider";
 import { CreateBotDialog } from "@/components/bots/create-bot-dialog";
 import { formatUsd } from "@/lib/format";
+import type { EvalDecision } from "@/lib/bot-diagnostics";
 
 const TRIGGER_LABEL: Record<string, string> = {
   mtf_aligned: "Multi-TF Aligned",
@@ -30,10 +37,29 @@ const SIDE_COLOR: Record<string, string> = {
 
 export function BotCard({ bot }: { bot: TradingBot }) {
   const { toggle, remove } = useBots();
+  const { forceRun } = useBotEngineContext();
+  const { latest } = useBotDiagnostics(bot.id);
   const toast = useToast();
   const [editing, setEditing] = useState(false);
+  const [testing, setTesting] = useState(false);
 
   const profitable = bot.totalPnl >= 0;
+
+  async function handleTestRun() {
+    setTesting(true);
+    try {
+      // ignoreCooldown so user can test immediately after a recent trade
+      await forceRun(bot.id, { ignoreCooldown: true });
+      toast.info("Test Run Complete", "Check the diagnostic panel below");
+    } catch (e) {
+      toast.error(
+        "Test Run Failed",
+        e instanceof Error ? e.message : "Unknown error"
+      );
+    } finally {
+      setTesting(false);
+    }
+  }
 
   async function handleToggle() {
     try {
@@ -221,6 +247,13 @@ export function BotCard({ bot }: { bot: TradingBot }) {
             value={`${bot.cooldownMinutes}m`}
           />
         </div>
+
+        {/* Diagnostic panel — explains why the bot did/didn't trade */}
+        <DiagnosticPanel
+          latest={latest}
+          onTestRun={handleTestRun}
+          testing={testing}
+        />
       </div>
 
       {editing && (
@@ -229,6 +262,153 @@ export function BotCard({ bot }: { bot: TradingBot }) {
     </>
   );
 }
+
+function DiagnosticPanel({
+  latest,
+  onTestRun,
+  testing,
+}: {
+  latest: ReturnType<typeof useBotDiagnostics>["latest"];
+  onTestRun: () => void;
+  testing: boolean;
+}) {
+  const decisionStyle = latest ? DECISION_STYLES[latest.decision] : null;
+
+  return (
+    <div className="border-t border-outline-variant/10 pt-3 flex flex-col gap-3">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[10px] text-on-surface-variant tracking-widest uppercase font-bold">
+          Last Evaluation
+        </span>
+        <button
+          onClick={onTestRun}
+          disabled={testing}
+          className="flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-bold tracking-widest uppercase bg-cyan/10 text-cyan hover:bg-cyan/20 transition-colors disabled:opacity-50"
+        >
+          <Zap className="w-3 h-3" />
+          {testing ? "Running..." : "Test Run"}
+        </button>
+      </div>
+
+      {!latest ? (
+        <div className="bg-surface-container p-3 text-[10px] text-on-surface-variant tracking-wider">
+          <span className="text-on-surface-variant/70">
+            No evaluations yet. Click <span className="text-cyan">Test Run</span> to evaluate immediately,
+            or wait for the watchlist to refresh (~5min).
+          </span>
+        </div>
+      ) : (
+        <div
+          className={`bg-surface-container p-3 border-l-2 ${
+            decisionStyle?.border ?? "border-on-surface-variant/20"
+          }`}
+        >
+          <div className="flex items-start gap-2 mb-2">
+            {decisionStyle?.Icon && (
+              <decisionStyle.Icon
+                className={`w-3.5 h-3.5 shrink-0 mt-0.5 ${decisionStyle.color}`}
+              />
+            )}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-baseline gap-2 flex-wrap">
+                <span
+                  className={`text-[10px] font-bold tracking-widest uppercase ${decisionStyle?.color ?? "text-on-surface"}`}
+                >
+                  {decisionStyle?.label ?? latest.decision}
+                </span>
+                <span className="text-[9px] text-on-surface-variant tracking-wider">
+                  {timeAgo(new Date(latest.at).toISOString())} ago
+                </span>
+              </div>
+              {latest.detail && (
+                <p className="text-[10px] text-on-surface-variant mt-1 leading-relaxed break-words">
+                  {latest.detail}
+                </p>
+              )}
+            </div>
+          </div>
+
+          {latest.best && (
+            <div className="mt-2 pt-2 border-t border-outline-variant/10 flex items-center gap-2 text-[10px]">
+              <span className="text-on-surface-variant tracking-widest uppercase">
+                Best:
+              </span>
+              <span className="font-bold text-on-surface">
+                {latest.best.display}
+              </span>
+              <span className="font-mono tabular-nums text-cyan">
+                {latest.best.confidence}%
+              </span>
+              <span className="text-on-surface-variant/70 font-mono">
+                {biasIcon(latest.best.bias1h)}·{biasIcon(latest.best.bias4h)}·{biasIcon(latest.best.bias1d)}
+              </span>
+            </div>
+          )}
+
+          {latest.candidatesScanned !== undefined &&
+            latest.rowsTotal !== undefined && (
+              <p className="text-[9px] text-on-surface-variant/60 mt-2 tracking-wider">
+                Scanned {latest.candidatesScanned}/{latest.rowsTotal} pairs
+              </p>
+            )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function biasIcon(bias: string): string {
+  if (bias === "bullish") return "▲";
+  if (bias === "bearish") return "▼";
+  return "·";
+}
+
+const DECISION_STYLES: Record<
+  EvalDecision,
+  {
+    label: string;
+    color: string;
+    border: string;
+    Icon: typeof CheckCircle2;
+  }
+> = {
+  trade_placed: {
+    label: "Trade Placed",
+    color: "text-emerald-accent",
+    border: "border-emerald-accent",
+    Icon: CheckCircle2,
+  },
+  trade_failed: {
+    label: "Trade Failed",
+    color: "text-crimson",
+    border: "border-crimson",
+    Icon: XCircle,
+  },
+  skip_cooldown: {
+    label: "Skipped — Cooldown",
+    color: "text-on-surface-variant",
+    border: "border-on-surface-variant/40",
+    Icon: Clock,
+  },
+  skip_max_open: {
+    label: "Skipped — Max Open",
+    color: "text-orange",
+    border: "border-orange/40",
+    Icon: AlertCircle,
+  },
+  skip_no_candidate: {
+    label: "Skipped — No Match",
+    color: "text-on-surface-variant",
+    border: "border-on-surface-variant/40",
+    Icon: AlertCircle,
+  },
+  skip_disabled: {
+    label: "Bot Paused",
+    color: "text-on-surface-variant",
+    border: "border-on-surface-variant/40",
+    Icon: Pause,
+  },
+};
 
 function Metric({
   label,

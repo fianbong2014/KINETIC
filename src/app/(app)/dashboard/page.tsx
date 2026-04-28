@@ -8,16 +8,15 @@ import { AlertCenter } from "@/components/dashboard/alert-center";
 import { Watchlist } from "@/components/dashboard/watchlist";
 import { PositionMonitor } from "@/components/dashboard/position-monitor";
 import { AlertMonitor } from "@/components/dashboard/alert-monitor";
-import { BotMonitor } from "@/components/dashboard/bot-monitor";
 import { DailyBriefing } from "@/components/dashboard/daily-briefing";
 
 export default function DashboardPage() {
   return (
     <div className="grid grid-cols-12 gap-3 lg:gap-6">
-      {/* Renderless: auto-close positions, fire price alerts, run bot trades */}
+      {/* Renderless: auto-close on SL/TP, fire price alerts. The bot
+          engine lives in (app) layout so it runs on every page. */}
       <PositionMonitor />
       <AlertMonitor />
-      <BotMonitor />
 
       {/* Auto-opens once per day with overnight summary + top movers */}
       <DailyBriefing />

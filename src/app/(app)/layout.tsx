@@ -1,5 +1,6 @@
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { PriceProvider } from "@/components/providers/price-provider";
+import { BotEngineProvider } from "@/components/providers/bot-engine-provider";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
 import { MobileNav } from "@/components/layout/mobile-nav";
@@ -13,26 +14,31 @@ export default function AppLayout({
   return (
     <TooltipProvider>
       <PriceProvider>
-        {/* Desktop sidebar - fixed position */}
-        <div className="hidden lg:block">
-          <Sidebar />
-        </div>
-
-        <div className="pl-0 lg:pl-20 min-h-screen flex flex-col">
-          <Topbar />
-
-          <main className="flex-1 p-3 sm:p-4 lg:p-6 pb-20 lg:pb-6">
-            {children}
-          </main>
-
-          {/* Desktop status bar */}
-          <div className="hidden lg:block shrink-0">
-            <StatusBar />
+        {/* Bot engine runs across the whole authenticated app so bots
+            keep evaluating signals even when the user is on /bots,
+            /signals, etc. — not just /dashboard. */}
+        <BotEngineProvider>
+          {/* Desktop sidebar - fixed position */}
+          <div className="hidden lg:block">
+            <Sidebar />
           </div>
 
-          {/* Mobile bottom nav */}
-          <MobileNav />
-        </div>
+          <div className="pl-0 lg:pl-20 min-h-screen flex flex-col">
+            <Topbar />
+
+            <main className="flex-1 p-3 sm:p-4 lg:p-6 pb-20 lg:pb-6">
+              {children}
+            </main>
+
+            {/* Desktop status bar */}
+            <div className="hidden lg:block shrink-0">
+              <StatusBar />
+            </div>
+
+            {/* Mobile bottom nav */}
+            <MobileNav />
+          </div>
+        </BotEngineProvider>
       </PriceProvider>
     </TooltipProvider>
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useBots, notifyBotsChanged, type TradingBot } from "@/hooks/use-bots";
 import { useWatchlist, type WatchlistRow } from "@/hooks/use-watchlist";
 import { usePositions, type Position } from "@/hooks/use-positions";
@@ -8,6 +8,12 @@ import { useAccount, notifyAccountChanged } from "@/hooks/use-account";
 import { useToast } from "@/components/providers/toast-provider";
 import { notify } from "@/lib/notifications";
 import { formatPrice, formatUsd } from "@/lib/format";
+import {
+  pickBestCandidate,
+  recordEvaluation,
+  type BestCandidate,
+  type EvalDecision,
+} from "@/lib/bot-diagnostics";
 
 /**
  * Client-side bot trade engine.
@@ -20,8 +26,13 @@ import { formatPrice, formatUsd } from "@/lib/format";
  *
  * Trades only execute while the dashboard is open — there is no server
  * worker. Cooldown + max-position checks prevent runaway behavior.
+ *
+ * Returns a `forceRun(botId)` callback so a "Test Run" button can
+ * trigger a one-off evaluation that bypasses cooldown.
  */
-export function useBotEngine() {
+export function useBotEngine(): {
+  forceRun: (botId: string, options?: { ignoreCooldown?: boolean }) => Promise<void>;
+} {
   const { bots } = useBots();
   const { rows } = useWatchlist();
   const { positions, refresh: refreshPositions } = usePositions("active");
@@ -35,29 +46,81 @@ export function useBotEngine() {
   // (watchlist version, positions version) tuple.
   const lastEvalRef = useRef<Map<string, string>>(new Map());
 
-  useEffect(() => {
-    if (bots.length === 0 || rows.length === 0) return;
+  // Stash the latest world state in refs so forceRun() can access it
+  // without triggering re-evaluation when the user clicks the button.
+  const stateRef = useRef({ bots, rows, positions, balance });
+  stateRef.current = { bots, rows, positions, balance };
 
-    const enabledBots = bots.filter((b) => b.enabled);
-    if (enabledBots.length === 0) return;
+  // Core evaluation routine — extracted so both the auto-effect and
+  // forceRun can reuse it.
+  const runForBot = useCallback(
+    async (
+      bot: TradingBot,
+      options: { ignoreCooldown?: boolean } = {}
+    ): Promise<void> => {
+      const { rows, positions, balance } = stateRef.current;
+      if (rows.length === 0) {
+        recordEvaluation(bot.id, {
+          at: Date.now(),
+          decision: "skip_no_candidate",
+          detail: "Watchlist empty",
+          rowsTotal: 0,
+        });
+        return;
+      }
 
-    // Snapshot signature — combine row state and active positions count
-    // so we re-run when either changes.
-    const sig = makeSignature(rows, positions);
+      if (inFlightRef.current.has(bot.id)) return;
 
-    for (const bot of enabledBots) {
-      if (inFlightRef.current.has(bot.id)) continue;
-      if (lastEvalRef.current.get(bot.id) === sig) continue;
+      const action = evaluateBot(bot, rows, positions, options);
+      const best = pickBestCandidate(rows);
 
-      // Mark this evaluation snapshot so we don't loop on every render
-      lastEvalRef.current.set(bot.id, sig);
+      if (action.kind === "skip") {
+        const decision: EvalDecision =
+          action.reason === "cooldown"
+            ? "skip_cooldown"
+            : action.reason === "max_open"
+              ? "skip_max_open"
+              : "skip_no_candidate";
 
-      const action = evaluateBot(bot, rows, positions);
-      if (action.kind !== "trade") continue;
+        const candidatesScanned = rows.filter(
+          (r) => r.ready && r.confidence !== null
+        ).length;
 
+        const detail = explainSkip(bot, action, best);
+
+        recordEvaluation(bot.id, {
+          at: Date.now(),
+          decision,
+          detail,
+          best: explainBest(bot, best),
+          candidatesScanned,
+          rowsTotal: rows.length,
+        });
+
+        // Also bump lastRunAt so user can see the bot is actively scanning.
+        await fetch(`/api/bots/${bot.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ lastRunAt: new Date().toISOString() }),
+        }).catch(() => {});
+        return;
+      }
+
+      // Trade path
       const { row, side } = action;
       const sizeUsd = (balance * bot.positionSizePct) / 100;
-      if (sizeUsd <= 0 || row.price <= 0) continue;
+      if (sizeUsd <= 0 || row.price <= 0) {
+        recordEvaluation(bot.id, {
+          at: Date.now(),
+          decision: "trade_failed",
+          detail:
+            balance <= 0
+              ? "Paper balance is zero — reset account or close losing positions"
+              : "Invalid size or price",
+          rowsTotal: rows.length,
+        });
+        return;
+      }
 
       const sizeBase = sizeUsd / row.price;
       const sl = bot.stopLossPct
@@ -76,57 +139,103 @@ export function useBotEngine() {
 
       inFlightRef.current.add(bot.id);
 
-      // Fire & forget — the engine doesn't block on this
-      placeBotTrade({
-        botId: bot.id,
-        asset: row.pair.symbol,
-        side,
-        size: sizeBase,
-        entry: row.price,
-        stopLoss: sl,
-        takeProfit: tp,
-        trailingDistance,
-      })
-        .then(async () => {
-          // Update bot lastTradeAt + lastRunAt
-          await fetch(`/api/bots/${bot.id}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              lastTradeAt: new Date().toISOString(),
-              lastRunAt: new Date().toISOString(),
-            }),
-          });
-
-          notifyAccountChanged();
-          notifyBotsChanged();
-          refreshPositions();
-
-          const title = `🤖 ${bot.name} placed ${side}`;
-          const body = `${row.pair.display} @ $${formatPrice(row.price)} · Size ${formatUsd(sizeUsd)}`;
-          toast.info(title, body);
-          notify({ title, body, tag: `bot-${bot.id}-${row.pair.symbol}` });
-        })
-        .catch((err) => {
-          toast.error(
-            `Bot "${bot.name}" failed`,
-            err instanceof Error ? err.message : "Trade not placed"
-          );
-        })
-        .finally(() => {
-          inFlightRef.current.delete(bot.id);
-          // Force re-evaluation on next snapshot
-          lastEvalRef.current.delete(bot.id);
+      try {
+        await placeBotTrade({
+          botId: bot.id,
+          asset: row.pair.symbol,
+          side,
+          size: sizeBase,
+          entry: row.price,
+          stopLoss: sl,
+          takeProfit: tp,
+          trailingDistance,
         });
+
+        await fetch(`/api/bots/${bot.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            lastTradeAt: new Date().toISOString(),
+            lastRunAt: new Date().toISOString(),
+          }),
+        });
+
+        notifyAccountChanged();
+        notifyBotsChanged();
+        refreshPositions();
+
+        recordEvaluation(bot.id, {
+          at: Date.now(),
+          decision: "trade_placed",
+          detail: `${side} ${row.pair.display} @ $${formatPrice(row.price)} · ${formatUsd(sizeUsd)}`,
+          best: explainBest(bot, best),
+          rowsTotal: rows.length,
+        });
+
+        const title = `🤖 ${bot.name} placed ${side}`;
+        const body = `${row.pair.display} @ $${formatPrice(row.price)} · Size ${formatUsd(sizeUsd)}`;
+        toast.info(title, body);
+        notify({ title, body, tag: `bot-${bot.id}-${row.pair.symbol}` });
+      } catch (err) {
+        recordEvaluation(bot.id, {
+          at: Date.now(),
+          decision: "trade_failed",
+          detail: err instanceof Error ? err.message : "Trade failed",
+          rowsTotal: rows.length,
+        });
+        toast.error(
+          `Bot "${bot.name}" failed`,
+          err instanceof Error ? err.message : "Trade not placed"
+        );
+      } finally {
+        inFlightRef.current.delete(bot.id);
+        // Force re-evaluation on next snapshot
+        lastEvalRef.current.delete(bot.id);
+      }
+    },
+    [refreshPositions, toast]
+  );
+
+  const forceRun = useCallback(
+    async (botId: string, options: { ignoreCooldown?: boolean } = {}) => {
+      const { bots } = stateRef.current;
+      const bot = bots.find((b) => b.id === botId);
+      if (!bot) return;
+      // Reset dedup so the auto-effect doesn't skip this snapshot
+      lastEvalRef.current.delete(botId);
+      await runForBot(bot, options);
+    },
+    [runForBot]
+  );
+
+  // Auto evaluation loop — runs whenever world state changes
+  useEffect(() => {
+    if (bots.length === 0 || rows.length === 0) return;
+
+    const enabledBots = bots.filter((b) => b.enabled);
+    if (enabledBots.length === 0) return;
+
+    const sig = makeSignature(rows, positions);
+
+    for (const bot of enabledBots) {
+      if (lastEvalRef.current.get(bot.id) === sig) continue;
+      lastEvalRef.current.set(bot.id, sig);
+      // Fire and forget — runForBot manages its own concurrency
+      runForBot(bot).catch(() => {});
     }
-  }, [bots, rows, positions, balance, toast, refreshPositions]);
+    // Engine is reactive to bots, rows, positions, balance via refs;
+    // the deps that should trigger re-evaluation are the world state
+    // identity changes.
+  }, [bots, rows, positions, balance, runForBot]);
+
+  return { forceRun };
 }
 
 // ─── Pure logic ──────────────────────────────────────────────────────
 
 interface SkipAction {
   kind: "skip";
-  reason: string;
+  reason: "cooldown" | "max_open" | "no_candidate";
 }
 interface TradeAction {
   kind: "trade";
@@ -136,17 +245,17 @@ interface TradeAction {
 type EvaluationResult = SkipAction | TradeAction;
 
 /**
- * Pure evaluator: given a bot and the current world state, returns
- * either a trade action or a reason it skipped. Picks the highest-
- * confidence eligible candidate symbol when more than one matches.
+ * Pure evaluator. `options.ignoreCooldown` lets a manual "Test Run"
+ * bypass the cooldown gate while still respecting all other rules.
  */
 export function evaluateBot(
   bot: TradingBot,
   rows: WatchlistRow[],
-  positions: Position[]
+  positions: Position[],
+  options: { ignoreCooldown?: boolean } = {}
 ): EvaluationResult {
   // ─ Cooldown check
-  if (bot.lastTradeAt) {
+  if (!options.ignoreCooldown && bot.lastTradeAt) {
     const since = Date.now() - new Date(bot.lastTradeAt).getTime();
     if (since < bot.cooldownMinutes * 60 * 1000) {
       return { kind: "skip", reason: "cooldown" };
@@ -173,7 +282,10 @@ export function evaluateBot(
       const result = scoreCandidate(bot, row);
       return result ? { ...result, row } : null;
     })
-    .filter((x): x is { row: WatchlistRow; side: "LONG" | "SHORT"; score: number } => x !== null)
+    .filter(
+      (x): x is { row: WatchlistRow; side: "LONG" | "SHORT"; score: number } =>
+        x !== null
+    )
     // Don't open a duplicate position from this bot on the same symbol
     .filter(
       (c) =>
@@ -200,7 +312,6 @@ function scoreCandidate(
 
   switch (bot.triggerType) {
     case "mtf_aligned": {
-      // All three TFs must agree
       const biases = [row.mtf["1h"], row.mtf["4h"], row.mtf["1d"]];
       const allBull = biases.every((b) => b === "bullish");
       const allBear = biases.every((b) => b === "bearish");
@@ -226,14 +337,10 @@ function scoreCandidate(
     }
 
     case "rsi_extreme": {
-      // Use the watchlist confidence as a proxy — if a TF triggered RSI
-      // overbought/oversold the row's events would have surfaced. For
-      // an MVP we accept any directional bias on the filtered TF.
       const bias = row.mtf[bot.tfFilter as "1h" | "4h" | "1d"];
       if (bias === null || bias === "neutral") return null;
       if (row.confidence < bot.minConfidence) return null;
 
-      // RSI strategy: fade extremes — go OPPOSITE to bias when extreme
       const detectedSide: "LONG" | "SHORT" =
         bias === "bullish" ? "SHORT" : "LONG";
       if (bot.side !== "ANY" && bot.side !== detectedSide) return null;
@@ -278,3 +385,53 @@ async function placeBotTrade(payload: {
   }
 }
 
+// ─── Diagnostic helpers ──────────────────────────────────────────────
+
+function explainBest(
+  bot: TradingBot,
+  best: BestCandidate | undefined
+): BestCandidate | undefined {
+  if (!best) return undefined;
+
+  // Add a reason if the best candidate doesn't pass the bot's gate
+  let reason: string | undefined;
+  if (best.confidence < bot.minConfidence) {
+    reason = `Confidence ${best.confidence}% < ${bot.minConfidence}% threshold`;
+  } else if (bot.triggerType === "mtf_aligned") {
+    const biases = [best.bias1h, best.bias4h, best.bias1d];
+    const allBull = biases.every((b) => b === "bullish");
+    const allBear = biases.every((b) => b === "bearish");
+    if (!allBull && !allBear) {
+      reason = `Timeframes not aligned (${biases.map((b) => b[0].toUpperCase()).join("·")})`;
+    }
+  }
+
+  return { ...best, reason };
+}
+
+function explainSkip(
+  bot: TradingBot,
+  action: SkipAction,
+  best: BestCandidate | undefined
+): string {
+  if (action.reason === "cooldown") {
+    if (!bot.lastTradeAt) return "Cooldown active";
+    const since = Date.now() - new Date(bot.lastTradeAt).getTime();
+    const remainingMs = bot.cooldownMinutes * 60 * 1000 - since;
+    const remainingMin = Math.ceil(remainingMs / 60_000);
+    return `Cooldown — ${remainingMin}m remaining`;
+  }
+  if (action.reason === "max_open") {
+    return `Max ${bot.maxOpenPositions} concurrent position(s) reached`;
+  }
+  if (best) {
+    if (best.confidence < bot.minConfidence) {
+      return `Best candidate ${best.display} only ${best.confidence}% (need ${bot.minConfidence}%)`;
+    }
+    if (bot.triggerType === "mtf_aligned") {
+      return `Best candidate ${best.display} — timeframes don't align`;
+    }
+    return `Best candidate ${best.display} — bias doesn't match strategy`;
+  }
+  return "No matching candidate";
+}

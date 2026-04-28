@@ -1,20 +1,27 @@
 "use client";
 
 import { useState } from "react";
-import { Bot, Plus, Activity } from "lucide-react";
+import { Bot, Plus, Activity, Eye, AlertTriangle } from "lucide-react";
 import { useBots } from "@/hooks/use-bots";
+import { useWatchlist } from "@/hooks/use-watchlist";
 import { BotCard } from "@/components/bots/bot-card";
 import { CreateBotDialog } from "@/components/bots/create-bot-dialog";
 import { formatUsd } from "@/lib/format";
 
 export default function BotsPage() {
   const { bots, loading } = useBots();
+  const { rows, loading: watchlistLoading } = useWatchlist();
   const [creating, setCreating] = useState(false);
 
   const enabledCount = bots.filter((b) => b.enabled).length;
   const totalActiveTrades = bots.reduce((s, b) => s + b.activeCount, 0);
   const totalPnl = bots.reduce((s, b) => s + b.totalPnl, 0);
   const totalTrades = bots.reduce((s, b) => s + b.totalTrades, 0);
+
+  // Engine health — what's blocking trades?
+  const readyRows = rows.filter((r) => r.ready && r.confidence !== null);
+  const watchlistReady = readyRows.length;
+  const watchlistTotal = rows.length;
 
   return (
     <div className="flex flex-col gap-3 lg:gap-6 max-w-[1600px] mx-auto">
@@ -79,16 +86,46 @@ export default function BotsPage() {
         </div>
       </div>
 
-      {/* Status banner */}
-      <div className="bg-surface-container border-l-2 border-primary p-3 flex items-start gap-3">
-        <Activity className="w-4 h-4 text-primary shrink-0 mt-0.5 animate-pulse" />
-        <div className="flex flex-col gap-0.5">
-          <p className="text-xs text-on-surface font-bold tracking-wider uppercase">
-            Bots run while Dashboard is open
-          </p>
+      {/* Engine status banner */}
+      <div
+        className={`border-l-2 p-3 flex items-start gap-3 ${
+          watchlistLoading
+            ? "bg-surface-container border-on-surface-variant/30"
+            : watchlistReady === watchlistTotal && watchlistTotal > 0
+              ? "bg-emerald-accent/5 border-emerald-accent"
+              : watchlistReady > 0
+                ? "bg-cyan/5 border-cyan"
+                : "bg-orange/5 border-orange"
+        }`}
+      >
+        {watchlistReady === watchlistTotal && watchlistTotal > 0 ? (
+          <Activity className="w-4 h-4 text-emerald-accent shrink-0 mt-0.5 animate-pulse" />
+        ) : watchlistReady > 0 ? (
+          <Activity className="w-4 h-4 text-cyan shrink-0 mt-0.5 animate-pulse" />
+        ) : (
+          <AlertTriangle className="w-4 h-4 text-orange shrink-0 mt-0.5" />
+        )}
+        <div className="flex flex-col gap-1 flex-1 min-w-0">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <p className="text-xs text-on-surface font-bold tracking-wider uppercase">
+              {watchlistLoading
+                ? "Engine starting..."
+                : watchlistReady === watchlistTotal && watchlistTotal > 0
+                  ? "Engine Active"
+                  : watchlistReady > 0
+                    ? `Engine Active — ${watchlistReady}/${watchlistTotal} pairs ready`
+                    : "Engine Idle — waiting for market data"}
+            </p>
+            <span className="flex items-center gap-1 text-[10px] text-on-surface-variant tracking-widest uppercase">
+              <Eye className="w-3 h-3" />
+              {watchlistReady} pair{watchlistReady === 1 ? "" : "s"} scanned
+            </span>
+          </div>
           <p className="text-[10px] text-on-surface-variant leading-relaxed">
-            The engine evaluates signals every ~5 minutes when you have the
-            dashboard open. For continuous 24/7 operation, keep a tab open.
+            <strong className="text-on-surface">Bots are client-side</strong> —
+            they only run while a KINETIC tab is open in this browser. The
+            engine evaluates every ~30s for prices and ~5min for multi-TF
+            signals. Close the tab and bots pause until you return.
           </p>
         </div>
       </div>
