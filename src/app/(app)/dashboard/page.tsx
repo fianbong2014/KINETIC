@@ -34,9 +34,11 @@ export default function DashboardPage() {
         <AlertCenter />
       </div>
 
-      {/* Middle Col: Chart + Open Positions */}
+      {/* Middle Col: Chart + Open Positions
+          Heights are explicit so the column matches the right column
+          (OrderBook + TradeExecution) instead of stretching past it. */}
       <div className="col-span-12 xl:col-span-6 flex flex-col gap-3 lg:gap-6 order-2 xl:order-2">
-        <div className="flex-1 flex flex-col min-h-[480px] md:min-h-[560px] lg:min-h-[640px]">
+        <div className="flex flex-col h-[420px] md:h-[460px] xl:h-[500px] 2xl:h-[560px]">
           <PriceChart />
         </div>
         <OpenPositions />

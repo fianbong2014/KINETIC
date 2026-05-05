@@ -93,7 +93,7 @@ export function OpenPositions() {
 
   return (
     <>
-      <section className="bg-surface-container-low p-5 h-64 flex flex-col">
+      <section className="bg-surface-container-low p-5 h-64 lg:h-72 xl:h-80 flex flex-col">
         {/* Header */}
         <div className="flex justify-between items-center mb-4 gap-3 flex-wrap">
           <div className="flex items-center gap-4">
