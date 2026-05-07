@@ -263,3 +263,53 @@
     padding-bottom: env(safe-area-inset-bottom);
   }
 }
+
+/* ─── react-grid-layout (Workspace #2) ─────────────────────────────── */
+.react-grid-layout {
+  position: relative;
+  transition: height 200ms ease;
+}
+.react-grid-item {
+  transition: all 200ms ease;
+  transition-property: left, top, width, height;
+}
+.react-grid-item.cssTransforms {
+  transition-property: transform, width, height;
+}
+.react-grid-item.resizing {
+  z-index: 3;
+  opacity: 0.9;
+}
+.react-grid-item.react-draggable-dragging {
+  transition: none;
+  z-index: 3;
+  cursor: grabbing;
+}
+.react-grid-item.react-grid-placeholder {
+  background: rgba(0, 255, 255, 0.15);
+  border: 1px dashed rgba(0, 255, 255, 0.5);
+  opacity: 0.6;
+  transition-duration: 100ms;
+  z-index: 2;
+}
+.react-grid-item > .react-resizable-handle {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  bottom: 0;
+  right: 0;
+  cursor: se-resize;
+}
+.react-grid-item > .react-resizable-handle::after {
+  content: "";
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid rgba(0, 255, 255, 0.5);
+  border-bottom: 2px solid rgba(0, 255, 255, 0.5);
+}
+.react-grid-item:hover > .react-resizable-handle::after {
+  border-color: #00ffff;
+}
