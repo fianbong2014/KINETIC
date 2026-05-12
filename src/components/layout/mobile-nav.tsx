@@ -2,14 +2,25 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Terminal, BarChart3, Bot, Shield, BookOpen } from "lucide-react";
+import {
+  Terminal,
+  BarChart3,
+  Bot,
+  Shield,
+  Bitcoin,
+  CandlestickChart,
+} from "lucide-react";
 
+// Six tabs maximum to keep mobile bottom nav readable on narrow phones.
+// Less-used pages (Journal, Settings) are reachable from the home block
+// menu and from the desktop sidebar.
 const navItems = [
   { icon: Terminal, label: "TERMINAL", href: "/dashboard" },
+  { icon: Bitcoin, label: "BTC", href: "/btc" },
+  { icon: CandlestickChart, label: "CHART", href: "/chart" },
   { icon: BarChart3, label: "SIGNALS", href: "/signals" },
   { icon: Bot, label: "BOTS", href: "/bots" },
   { icon: Shield, label: "RISK", href: "/risk" },
-  { icon: BookOpen, label: "JOURNAL", href: "/journal" },
 ];
 
 export function MobileNav() {

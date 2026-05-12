@@ -12,10 +12,14 @@ import {
   HelpCircle,
   Code,
   Bot,
+  Bitcoin,
+  CandlestickChart,
 } from "lucide-react";
 
 const navItems = [
   { icon: LayoutGrid, label: "Terminal", href: "/dashboard" },
+  { icon: Bitcoin, label: "BTC", href: "/btc" },
+  { icon: CandlestickChart, label: "Chart", href: "/chart" },
   { icon: LineChart, label: "Analytics", href: "/signals" },
   { icon: Bot, label: "Bots", href: "/bots" },
   { icon: Shield, label: "Command", href: "/risk" },

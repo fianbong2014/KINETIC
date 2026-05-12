@@ -10,6 +10,7 @@ import {
   Zap,
   ArrowRight,
   Bot,
+  CandlestickChart,
 } from "lucide-react";
 
 const menuItems = [
@@ -21,6 +22,15 @@ const menuItems = [
     accent: "bg-primary/10 group-hover:bg-primary/20",
     iconColor: "text-primary",
     borderColor: "border-primary/20 group-hover:border-primary/40",
+  },
+  {
+    icon: CandlestickChart,
+    label: "Chart",
+    description: "Full-screen chart with customizable indicators (EMA, BB, VWAP), Heikin-Ashi mode, RSI & MACD panes, and saveable templates",
+    href: "/chart",
+    accent: "bg-[#ffd166]/10 group-hover:bg-[#ffd166]/20",
+    iconColor: "text-[#ffd166]",
+    borderColor: "border-[#ffd166]/20 group-hover:border-[#ffd166]/40",
   },
   {
     icon: LineChart,
