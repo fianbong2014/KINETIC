@@ -32,13 +32,17 @@ export function BtcWorkspaceSwitcher() {
     }
   }
 
+  const isGoogle = hydrated && active === "google";
+
   return (
-    <div className="flex flex-col gap-3 lg:gap-4">
+    <div
+      className={`flex flex-col gap-3 lg:gap-4 ${isGoogle ? "google-ws" : ""}`}
+    >
       <div className="flex items-center justify-end">
         <div
           role="tablist"
           aria-label="BTC workspace style"
-          className="inline-flex bg-surface-container-low border border-outline-variant/10 p-0.5"
+          className="google-ws-toolbar inline-flex bg-surface-container-low border border-outline-variant/10 p-0.5"
         >
           <SwitchTab
             active={active === "google"}
@@ -63,6 +67,8 @@ export function BtcWorkspaceSwitcher() {
     </div>
   );
 }
+
+
 
 function SwitchTab({
   active,

@@ -264,6 +264,56 @@
   }
 }
 
+/* ─── Google-style workspace scope (BTC monitor) ────────────────────
+   Opt-in override of the global zero-radius rule. Inside @layer base
+   so it shares a cascade layer with the global `* { border-radius: 0 }`
+   reset; specificity then decides and our `.google-ws .x` selectors
+   (0,2,0) win over the universal `*` (0,0,0). */
+
+@layer base {
+  .google-ws .bg-surface-container-low,
+  .google-ws .bg-surface-container,
+  .google-ws .bg-surface-container-high,
+  .google-ws .bg-surface-container-highest,
+  .google-ws section,
+  .google-ws .gs-card {
+    border-radius: 16px !important;
+  }
+
+  /* Smaller interior surfaces — feature tiles, fee rows, etc. — get a
+     tighter radius so they nest cleanly inside the parent card. */
+  .google-ws .bg-surface-container > .bg-surface-container-high,
+  .google-ws .bg-surface-container > .bg-surface-container,
+  .google-ws .gs-card-sm {
+    border-radius: 10px !important;
+  }
+
+  /* Stacked bars (dominance, long/short) — softly rounded as one piece. */
+  .google-ws .flex.h-3.mt-3.overflow-hidden,
+  .google-ws .flex.h-2.mt-3.overflow-hidden,
+  .google-ws .h-1.bg-surface-container.mt-3 {
+    border-radius: 9999px !important;
+  }
+
+  /* Buttons inside cards take a soft pill shape — but NOT the page-level
+     underline tabs, which look better flat to preserve the indicator. */
+  .google-ws button:not([role="tab"]) {
+    border-radius: 9999px !important;
+  }
+
+  /* The workspace switcher tabs (Google / Compact) are pill-style on
+     purpose — explicit override so they get the radius back. */
+  .google-ws-toolbar [role="tab"] {
+    border-radius: 9999px !important;
+  }
+
+  /* The workspace switcher toolbar at the top is itself a card; round
+     it the same as other cards. */
+  .google-ws-toolbar {
+    border-radius: 9999px !important;
+  }
+}
+
 /* ─── react-grid-layout (Workspace #2) ─────────────────────────────── */
 .react-grid-layout {
   position: relative;
