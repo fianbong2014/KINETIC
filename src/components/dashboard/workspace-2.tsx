@@ -26,6 +26,11 @@ interface LayoutItem {
   h: number;
   minW?: number;
   minH?: number;
+  // react-grid-layout treats `static: true` as the canonical "this
+  // item cannot be moved or resized" flag. We apply it to every item
+  // when the user toggles the workspace lock; relying on the global
+  // isDraggable/isResizable props alone is unreliable across renders.
+  static?: boolean;
 }
 type Layouts = { [breakpoint: string]: LayoutItem[] };
 import { GripVertical, RotateCcw, Lock, Unlock } from "lucide-react";
@@ -118,13 +123,19 @@ export function Workspace2() {
   }, []);
 
   // Persist on layout change. The library's TS types lag behind v2, so
-  // accept the loose object shape and coerce.
+  // accept the loose object shape and coerce. Strip the `static` flag
+  // we inject for the lock state so it doesn't bleed into saved data.
   function handleLayoutChange(_current: unknown, allLayouts: unknown) {
     if (!hydrated) return;
+    if (locked) return; // sanity guard — locked items shouldn't change
     const next = allLayouts as Layouts;
-    setLayouts(next);
+    const cleaned: Layouts = {};
+    for (const [bp, items] of Object.entries(next)) {
+      cleaned[bp] = items.map(({ static: _s, ...rest }) => rest);
+    }
+    setLayouts(cleaned);
     try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(cleaned));
     } catch {
       // quota / serialization failure — non-fatal
     }
@@ -140,7 +151,18 @@ export function Workspace2() {
     }
   }
 
-  const memoLayouts = useMemo(() => layouts, [layouts]);
+  // When the user locks the workspace we project `static: true` onto
+  // every item across every breakpoint. react-grid-layout reads `static`
+  // per-item and refuses to move/resize those items, which is more
+  // reliable than the global isDraggable/isResizable flags.
+  const memoLayouts = useMemo<Layouts>(() => {
+    if (!locked) return layouts;
+    const projected: Layouts = {};
+    for (const [bp, items] of Object.entries(layouts)) {
+      projected[bp] = items.map((item) => ({ ...item, static: true }));
+    }
+    return projected;
+  }, [layouts, locked]);
 
   return (
     <div className="flex flex-col gap-3">
@@ -173,6 +195,11 @@ export function Workspace2() {
 
       <div ref={containerRef}>
         <Responsive
+          // Re-mount the grid on lock toggle so any in-progress drag
+          // handlers and pointer captures from the unlocked state are
+          // fully released. Without this, the lock prop change
+          // sometimes leaves stale handlers attached to widget headers.
+          key={locked ? "locked" : "unlocked"}
           className="layout"
           layouts={memoLayouts}
           breakpoints={{ lg: 1280, md: 768, sm: 0 }}
