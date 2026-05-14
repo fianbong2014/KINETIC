@@ -6,6 +6,7 @@ import { useWatchlist, type WatchlistRow } from "@/hooks/use-watchlist";
 import { usePositions, type Position } from "@/hooks/use-positions";
 import { useAccount, notifyAccountChanged } from "@/hooks/use-account";
 import { useToast } from "@/components/providers/toast-provider";
+import { writeNotification } from "@/hooks/use-notifications";
 import { notify } from "@/lib/notifications";
 import { formatPrice, formatUsd } from "@/lib/format";
 import {
@@ -176,6 +177,20 @@ export function useBotEngine(): {
         const body = `${row.pair.display} @ $${formatPrice(row.price)} · Size ${formatUsd(sizeUsd)}`;
         toast.info(title, body);
         notify({ title, body, tag: `bot-${bot.id}-${row.pair.symbol}` });
+
+        writeNotification({
+          type: "bot_trade",
+          title,
+          body,
+          meta: {
+            botId: bot.id,
+            botName: bot.name,
+            symbol: row.pair.symbol,
+            side,
+            entry: row.price,
+            sizeUsd,
+          },
+        });
       } catch (err) {
         recordEvaluation(bot.id, {
           at: Date.now(),

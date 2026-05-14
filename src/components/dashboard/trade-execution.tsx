@@ -6,6 +6,7 @@ import { useAccount, notifyAccountChanged } from "@/hooks/use-account";
 import { useSettings } from "@/hooks/use-settings";
 import { usePrice } from "@/components/providers/price-provider";
 import { useToast } from "@/components/providers/toast-provider";
+import { writeNotification } from "@/hooks/use-notifications";
 import { formatPrice, formatUsd } from "@/lib/format";
 
 export function TradeExecution() {
@@ -115,6 +116,18 @@ export function TradeExecution() {
         `${side} Order Placed`,
         `${size} ${pair.base} @ $${formatPrice(entryPrice)} · Notional ${formatUsd(notional)}`
       );
+      writeNotification({
+        type: "trade",
+        title: `${side} Order Placed`,
+        body: `${size} ${pair.base} @ $${formatPrice(entryPrice)} · Notional ${formatUsd(notional)}`,
+        meta: {
+          symbol,
+          side,
+          size,
+          entry: entryPrice,
+          notional,
+        },
+      });
       // Clear form
       setStopLoss("");
       setTakeProfit("");

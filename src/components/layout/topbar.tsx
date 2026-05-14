@@ -7,7 +7,7 @@ import { usePrice } from "@/components/providers/price-provider";
 import { useAccount } from "@/hooks/use-account";
 import { PairSelector } from "@/components/layout/pair-selector";
 import { formatUsd } from "@/lib/format";
-import { Bell } from "lucide-react";
+import { NotificationBell } from "@/components/layout/notification-bell";
 
 const navLinks = [
   { label: "DASHBOARD", href: "/dashboard" },
@@ -109,13 +109,8 @@ export function Topbar() {
             </span>
           </div>
 
-          {/* Notification bell */}
-          <button
-            aria-label="Notifications"
-            className="text-[#adaaab] hover:text-[#ffffff] transition-colors shrink-0"
-          >
-            <Bell className="w-5 h-5" />
-          </button>
+          {/* Notification bell — opens the inbox panel, shows unread count */}
+          <NotificationBell />
         </div>
       </header>
 

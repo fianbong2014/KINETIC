@@ -6,6 +6,7 @@ import { notifyAccountChanged } from "@/hooks/use-account";
 import { useSettings } from "@/hooks/use-settings";
 import { usePrice } from "@/components/providers/price-provider";
 import { useToast } from "@/components/providers/toast-provider";
+import { writeNotification } from "@/hooks/use-notifications";
 import { notify } from "@/lib/notifications";
 import { formatPrice, formatUsd } from "@/lib/format";
 
@@ -124,6 +125,22 @@ export function usePositionMonitor() {
           const toastBody = `Exit $${formatPrice(exitPrice)} · PNL ${formatUsd(pnl, { signed: true })}`;
           if (triggered === "TP") toast.success(toastTitle, toastBody);
           else toast.warning(toastTitle, toastBody);
+
+          // Persistent inbox record so the user can review missed
+          // SL/TP fires when the dashboard wasn't focused.
+          writeNotification({
+            type: triggered === "TP" ? "tp_hit" : "sl_hit",
+            title: toastTitle,
+            body: toastBody,
+            meta: {
+              positionId: pos.id,
+              symbol: pos.asset,
+              side: pos.side,
+              exit: exitPrice,
+              pnl,
+              triggered,
+            },
+          });
 
           if (alertEnabled) {
             notify({

@@ -5,6 +5,7 @@ import { useAlerts } from "@/hooks/use-alerts";
 import { useSettings } from "@/hooks/use-settings";
 import { usePrice } from "@/components/providers/price-provider";
 import { useToast } from "@/components/providers/toast-provider";
+import { writeNotification } from "@/hooks/use-notifications";
 import { notify } from "@/lib/notifications";
 import { formatPrice } from "@/lib/format";
 
@@ -56,6 +57,19 @@ export function useAlertMonitor() {
 
       // In-app toast
       toast.info(title, body);
+
+      // Persistent inbox record so the user can review missed alerts
+      writeNotification({
+        type: "alert",
+        title,
+        body,
+        meta: {
+          alertId: alert.id,
+          symbol: alert.symbol,
+          price: alert.price,
+          direction: alert.direction,
+        },
+      });
 
       // Browser notification (respects user setting)
       if (alertEnabled) {
