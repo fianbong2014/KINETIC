@@ -9,6 +9,7 @@ import { BtcDominance } from "@/components/btc/btc-dominance";
 import { BtcMempool } from "@/components/btc/btc-mempool";
 import { BtcLiquidations } from "@/components/btc/btc-liquidations";
 import { BtcWhales } from "@/components/btc/btc-whales";
+import { BtcNotifications } from "@/components/btc/btc-notifications";
 
 // Compact workspace — the original BTC monitor layout. Three dense
 // rows with all widgets visible at once.
@@ -42,11 +43,14 @@ export function BtcWorkspaceCompact() {
       </div>
 
       <div className="grid grid-cols-12 gap-3 lg:gap-4">
-        <div className="col-span-12 lg:col-span-6">
+        <div className="col-span-12 lg:col-span-4">
           <BtcLiquidations />
         </div>
-        <div className="col-span-12 lg:col-span-6">
+        <div className="col-span-12 lg:col-span-4">
           <BtcWhales />
+        </div>
+        <div className="col-span-12 lg:col-span-4">
+          <BtcNotifications />
         </div>
       </div>
     </div>

@@ -29,6 +29,7 @@ model User {
   priceAlerts   PriceAlert[]
   customIndicators CustomIndicator[]
   tradingBots   TradingBot[]
+  notifications Notification[]
 }
 
 model Account {
@@ -196,4 +197,29 @@ model JournalEntry {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, date])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  // Type drives the icon/color the UI renders and lets the user filter.
+  // Allowed: "alert" | "sl_hit" | "tp_hit" | "bot_trade" | "trade" |
+  //          "briefing" | "system"
+  type      String
+  title     String
+  body      String?  @db.Text
+  // Structured payload for click-to-context — e.g. { symbol, positionId,
+  // alertId, pnl, side, price }. Schema-free so we can iterate without
+  // migrations.
+  meta      Json     @default("{}")
+  read      Boolean  @default(false)
+  archived  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Common access pattern: list unread+unarchived for the current user
+  // sorted by createdAt desc.
+  @@index([userId, read, archived, createdAt])
+  @@index([userId, createdAt])
 }

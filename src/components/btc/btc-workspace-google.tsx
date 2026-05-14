@@ -12,6 +12,7 @@ import { BtcDominance } from "@/components/btc/btc-dominance";
 import { BtcMempool } from "@/components/btc/btc-mempool";
 import { BtcLiquidations } from "@/components/btc/btc-liquidations";
 import { BtcWhales } from "@/components/btc/btc-whales";
+import { BtcNotifications } from "@/components/btc/btc-notifications";
 
 import { useBtcTicker } from "@/hooks/use-btc-monitor";
 import { useFundingRate } from "@/hooks/use-funding-rate";
@@ -111,6 +112,10 @@ function OverviewTab() {
           <BtcMempool />
         </div>
       </Section>
+
+      <Section title="Your Activity" subtitle="Recent BTC notifications">
+        <BtcNotifications />
+      </Section>
     </div>
   );
 }
@@ -161,11 +166,12 @@ function FlowTab() {
   return (
     <Section
       title="Order Flow"
-      subtitle="Liquidations & whale movements"
+      subtitle="Live liquidations, whale movements, your alerts"
     >
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <BtcLiquidations />
         <BtcWhales />
+        <BtcNotifications />
       </div>
     </Section>
   );
