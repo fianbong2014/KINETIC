@@ -8,6 +8,7 @@ import {
 } from "@/components/chart/chart-toolbar";
 import { OscillatorPane } from "@/components/chart/oscillator-pane";
 import { TradingViewChart } from "@/components/chart/tradingview-chart";
+import { PromptDialog } from "@/components/ui/prompt-dialog";
 import {
   DEFAULT_CHART_CONFIG,
   deleteTemplate,
@@ -27,6 +28,7 @@ export default function ChartPage() {
   const [config, setConfig] = useState<ChartConfig>(DEFAULT_CHART_CONFIG);
   const [templates, setTemplates] = useState<ChartTemplate[]>([]);
   const [templateDialog, setTemplateDialog] = useState(false);
+  const [savePrompt, setSavePrompt] = useState(false);
   const toast = useToast();
 
   useEffect(() => {
@@ -41,13 +43,13 @@ export default function ChartPage() {
   }, []);
 
   function handleSaveTemplate() {
-    const name = prompt(
-      "Name this chart template:",
-      `${config.timeframe} · ${config.chartType}`
-    );
-    if (!name || !name.trim()) return;
+    setSavePrompt(true);
+  }
+
+  function commitSaveTemplate(name: string) {
     const tpl = saveTemplate(name.trim(), config);
     setTemplates(loadTemplates());
+    setSavePrompt(false);
     toast.success("Template Saved", tpl.name);
   }
 
@@ -145,6 +147,16 @@ export default function ChartPage() {
           onClose={() => setTemplateDialog(false)}
         />
       )}
+
+      <PromptDialog
+        open={savePrompt}
+        title="Name this chart template"
+        placeholder="e.g. 1h scalp setup"
+        defaultValue={`${config.timeframe} · ${config.chartType}`}
+        confirmLabel="Save template"
+        onConfirm={commitSaveTemplate}
+        onCancel={() => setSavePrompt(false)}
+      />
     </div>
   );
 }

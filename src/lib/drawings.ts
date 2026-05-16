@@ -99,6 +99,53 @@ export interface PositionTool extends Styled {
   stop: number;
 }
 
+export interface Ellipse extends Styled {
+  id: string;
+  type: "ellipse";
+  symbol: string;
+  p1: Point;
+  p2: Point;
+}
+
+// Fib fan — rays from p1 fanned at fib ratios toward p2.
+export interface FibFan extends Styled {
+  id: string;
+  type: "fibfan";
+  symbol: string;
+  p1: Point;
+  p2: Point;
+}
+
+// Parallel channel — main line p1→p2, parallel edge through p3.
+export interface ChannelTool extends Styled {
+  id: string;
+  type: "channel";
+  symbol: string;
+  p1: Point;
+  p2: Point;
+  p3: Point;
+}
+
+// Andrews pitchfork — p1 pivot, p2/p3 the two prongs.
+export interface Pitchfork extends Styled {
+  id: string;
+  type: "pitchfork";
+  symbol: string;
+  p1: Point;
+  p2: Point;
+  p3: Point;
+}
+
+// Fib extension — trend p1→p2, projected from p3.
+export interface FibExtension extends Styled {
+  id: string;
+  type: "fibext";
+  symbol: string;
+  p1: Point;
+  p2: Point;
+  p3: Point;
+}
+
 export type Drawing =
   | HorizontalLevel
   | HorizontalRay
@@ -108,12 +155,26 @@ export type Drawing =
   | FibRetracement
   | TextNote
   | MeasureTool
-  | PositionTool;
+  | PositionTool
+  | Ellipse
+  | FibFan
+  | ChannelTool
+  | Pitchfork
+  | FibExtension;
 
 export type DrawingType = Drawing["type"];
 
+// Drawings that carry a third control point.
+export type ThreePoint = ChannelTool | Pitchfork | FibExtension;
+
 // Fibonacci retracement levels rendered between p1 and p2.
 export const FIB_LEVELS = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1] as const;
+
+// Fib extension projection ratios.
+export const FIB_EXT_LEVELS = [0, 0.618, 1, 1.618, 2.618, 3.618] as const;
+
+// Fib fan ratios.
+export const FIB_FAN_LEVELS = [0.382, 0.5, 0.618] as const;
 
 const STORAGE_PREFIX = "kinetic:drawings:";
 
@@ -208,5 +269,15 @@ export function drawingLabel(d: Drawing): string {
       return "Measure";
     case "position":
       return d.side === "long" ? "Long position" : "Short position";
+    case "ellipse":
+      return "Ellipse";
+    case "fibfan":
+      return "Fib fan";
+    case "channel":
+      return "Parallel channel";
+    case "pitchfork":
+      return "Pitchfork";
+    case "fibext":
+      return "Fib extension";
   }
 }

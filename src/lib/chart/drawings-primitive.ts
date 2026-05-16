@@ -12,12 +12,19 @@
 // the rest of the chart code in this project.
 
 import {
+  FIB_EXT_LEVELS,
+  FIB_FAN_LEVELS,
   FIB_LEVELS,
+  type ChannelTool,
   type Drawing,
+  type Ellipse,
+  type FibExtension,
+  type FibFan,
   type FibRetracement,
   type HorizontalLevel,
   type HorizontalRay,
   type MeasureTool,
+  type Pitchfork,
   type Point,
   type PositionTool,
   type RectZone,
@@ -88,8 +95,10 @@ export function applyDrag(
     case "trendline":
     case "rect":
     case "fib":
-    case "measure": {
-      const o = orig as TrendLine | RectZone | FibRetracement | MeasureTool;
+    case "measure":
+    case "ellipse":
+    case "fibfan": {
+      const o = orig as { p1: Point; p2: Point };
       if (pointIndex === "move") {
         return {
           ...d,
@@ -98,6 +107,22 @@ export function applyDrag(
         };
       }
       return pointIndex === 0 ? { ...d, p1: cur } : { ...d, p2: cur };
+    }
+    case "channel":
+    case "pitchfork":
+    case "fibext": {
+      const o = orig as { p1: Point; p2: Point; p3: Point };
+      if (pointIndex === "move") {
+        return {
+          ...d,
+          p1: { time: o.p1.time + dt, price: o.p1.price + dp },
+          p2: { time: o.p2.time + dt, price: o.p2.price + dp },
+          p3: { time: o.p3.time + dt, price: o.p3.price + dp },
+        };
+      }
+      if (pointIndex === 0) return { ...d, p1: cur };
+      if (pointIndex === 1) return { ...d, p2: cur };
+      return { ...d, p3: cur };
     }
     case "position": {
       const o = orig as PositionTool;
@@ -229,11 +254,24 @@ export class DrawingsPrimitive {
         case "trendline":
         case "rect":
         case "fib":
-        case "measure": {
+        case "measure":
+        case "ellipse":
+        case "fibfan": {
           const s1 = this.screen(d.p1);
           const s2 = this.screen(d.p2);
           if (s1) push(0, s1.x, s1.y);
           if (s2) push(1, s2.x, s2.y);
+          break;
+        }
+        case "channel":
+        case "pitchfork":
+        case "fibext": {
+          const s1 = this.screen(d.p1);
+          const s2 = this.screen(d.p2);
+          const s3 = this.screen(d.p3);
+          if (s1) push(0, s1.x, s1.y);
+          if (s2) push(1, s2.x, s2.y);
+          if (s3) push(2, s3.x, s3.y);
           break;
         }
         case "position": {
@@ -337,7 +375,100 @@ export class DrawingsPrimitive {
         if (ys.length === 0) return false;
         return y >= Math.min(...ys) - HIT_TOL && y <= Math.max(...ys) + HIT_TOL;
       }
+      case "ellipse": {
+        const s1 = this.screen(d.p1);
+        const s2 = this.screen(d.p2);
+        if (!s1 || !s2) return false;
+        const cx = (s1.x + s2.x) / 2;
+        const cy = (s1.y + s2.y) / 2;
+        const rx = Math.abs(s2.x - s1.x) / 2 || 1;
+        const ry = Math.abs(s2.y - s1.y) / 2 || 1;
+        const v = ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2;
+        return v <= 1.15; // inside-ish
+      }
+      case "fibfan": {
+        const s1 = this.screen(d.p1);
+        const s2 = this.screen(d.p2);
+        if (!s1 || !s2) return false;
+        for (const r of FIB_FAN_LEVELS) {
+          const end = { x: s2.x, y: s1.y + (s2.y - s1.y) * r };
+          if (this.pointNearSegment(x, y, s1, end) <= HIT_TOL) return true;
+        }
+        return false;
+      }
+      case "channel": {
+        const g = this.channelGeom(d);
+        if (!g) return false;
+        return (
+          this.pointNearSegment(x, y, g.a1, g.a2) <= HIT_TOL ||
+          this.pointNearSegment(x, y, g.b1, g.b2) <= HIT_TOL
+        );
+      }
+      case "pitchfork": {
+        const g = this.forkGeom(d);
+        if (!g) return false;
+        return (
+          this.pointNearSegment(x, y, g.med0, g.med1) <= HIT_TOL ||
+          this.pointNearSegment(x, y, g.up0, g.up1) <= HIT_TOL ||
+          this.pointNearSegment(x, y, g.lo0, g.lo1) <= HIT_TOL
+        );
+      }
+      case "fibext": {
+        const s3 = this.screen(d.p3);
+        if (!s3) return false;
+        if (x < s3.x - HIT_TOL) return false;
+        for (const r of FIB_EXT_LEVELS) {
+          const price = d.p3.price + (d.p2.price - d.p1.price) * r;
+          const ly = this.yOf(price);
+          if (ly != null && Math.abs(ly - y) <= HIT_TOL) return true;
+        }
+        return false;
+      }
     }
+  }
+
+  // Channel geometry: main line a1→a2 (p1→p2) and the parallel edge
+  // b1→b2 shifted vertically so it passes through p3.
+  private channelGeom(d: ChannelTool) {
+    const s1 = this.screen(d.p1);
+    const s2 = this.screen(d.p2);
+    const s3 = this.screen(d.p3);
+    if (!s1 || !s2 || !s3) return null;
+    // vertical offset so the parallel passes through p3
+    const slope = s2.x === s1.x ? 0 : (s2.y - s1.y) / (s2.x - s1.x);
+    const lineYAt = (xx: number) => s1.y + slope * (xx - s1.x);
+    const off = s3.y - lineYAt(s3.x);
+    return {
+      a1: s1,
+      a2: s2,
+      b1: { x: s1.x, y: s1.y + off },
+      b2: { x: s2.x, y: s2.y + off },
+    };
+  }
+
+  // Pitchfork: median from p1 through midpoint of (p2,p3); the two
+  // prongs are parallels through p2 and p3, all extended right.
+  private forkGeom(d: Pitchfork) {
+    const s1 = this.screen(d.p1);
+    const s2 = this.screen(d.p2);
+    const s3 = this.screen(d.p3);
+    if (!s1 || !s2 || !s3) return null;
+    const mid = { x: (s2.x + s3.x) / 2, y: (s2.y + s3.y) / 2 };
+    const dx = mid.x - s1.x;
+    const dy = mid.y - s1.y;
+    const ext = (from: ScreenPoint) => ({
+      x: this.paneWidth,
+      y: from.y + (dx === 0 ? 0 : (dy / dx) * (this.paneWidth - from.x)),
+    });
+    return {
+      med0: s1,
+      med1: ext(s1),
+      up0: s2,
+      up1: ext(s2),
+      lo0: s3,
+      lo1: ext(s3),
+      mid,
+    };
   }
 
   private pointNearSegment(
@@ -409,6 +540,21 @@ export class DrawingsPrimitive {
           break;
         case "position":
           this.drawPosition(ctx, d, sel);
+          break;
+        case "ellipse":
+          this.drawEllipse(ctx, d, sel);
+          break;
+        case "fibfan":
+          this.drawFibFan(ctx, d, sel);
+          break;
+        case "channel":
+          this.drawChannel(ctx, d, sel);
+          break;
+        case "pitchfork":
+          this.drawPitchfork(ctx, d, sel);
+          break;
+        case "fibext":
+          this.drawFibExt(ctx, d, sel);
           break;
       }
     }
@@ -713,6 +859,179 @@ export class DrawingsPrimitive {
       this.drawHandle(ctx, midX, yT);
       this.drawHandle(ctx, midX, yS);
       this.drawHandle(ctx, ax, yE);
+    }
+  }
+
+  private drawEllipse(
+    ctx: CanvasRenderingContext2D,
+    d: Ellipse,
+    sel: boolean
+  ) {
+    const s1 = this.screen(d.p1);
+    const s2 = this.screen(d.p2);
+    if (!s1 || !s2) return;
+    const cx = (s1.x + s2.x) / 2;
+    const cy = (s1.y + s2.y) / 2;
+    const rx = Math.abs(s2.x - s1.x) / 2;
+    const ry = Math.abs(s2.y - s1.y) / 2;
+    ctx.save();
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+    ctx.fillStyle = this.alpha(d.color, 0.1);
+    ctx.fill();
+    ctx.restore();
+    this.applyStroke(ctx, d);
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    if (sel && !d.locked) {
+      this.drawHandle(ctx, s1.x, s1.y);
+      this.drawHandle(ctx, s2.x, s2.y);
+    }
+  }
+
+  private drawFibFan(
+    ctx: CanvasRenderingContext2D,
+    d: FibFan,
+    sel: boolean
+  ) {
+    const s1 = this.screen(d.p1);
+    const s2 = this.screen(d.p2);
+    if (!s1 || !s2) return;
+    this.applyStroke(ctx, d);
+    ctx.beginPath();
+    ctx.moveTo(s1.x, s1.y);
+    ctx.lineTo(s2.x, s2.y);
+    ctx.stroke();
+    for (const r of FIB_FAN_LEVELS) {
+      const ey = s1.y + (s2.y - s1.y) * r;
+      ctx.save();
+      ctx.setLineDash([]);
+      ctx.strokeStyle = this.alpha(d.color, 0.6);
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(s1.x, s1.y);
+      ctx.lineTo(s2.x, ey);
+      ctx.stroke();
+      ctx.restore();
+      this.label(ctx, `${(r * 100).toFixed(1)}%`, s2.x + 3, ey + 3, d.color);
+    }
+    if (sel && !d.locked) {
+      this.drawHandle(ctx, s1.x, s1.y);
+      this.drawHandle(ctx, s2.x, s2.y);
+    }
+  }
+
+  private drawChannel(
+    ctx: CanvasRenderingContext2D,
+    d: ChannelTool,
+    sel: boolean
+  ) {
+    const g = this.channelGeom(d);
+    if (!g) return;
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(g.a1.x, g.a1.y);
+    ctx.lineTo(g.a2.x, g.a2.y);
+    ctx.lineTo(g.b2.x, g.b2.y);
+    ctx.lineTo(g.b1.x, g.b1.y);
+    ctx.closePath();
+    ctx.fillStyle = this.alpha(d.color, 0.08);
+    ctx.fill();
+    ctx.restore();
+    this.applyStroke(ctx, d);
+    ctx.beginPath();
+    ctx.moveTo(g.a1.x, g.a1.y);
+    ctx.lineTo(g.a2.x, g.a2.y);
+    ctx.moveTo(g.b1.x, g.b1.y);
+    ctx.lineTo(g.b2.x, g.b2.y);
+    ctx.stroke();
+    if (sel && !d.locked) {
+      const s3 = this.screen(d.p3);
+      this.drawHandle(ctx, g.a1.x, g.a1.y);
+      this.drawHandle(ctx, g.a2.x, g.a2.y);
+      if (s3) this.drawHandle(ctx, s3.x, s3.y);
+    }
+  }
+
+  private drawPitchfork(
+    ctx: CanvasRenderingContext2D,
+    d: Pitchfork,
+    sel: boolean
+  ) {
+    const g = this.forkGeom(d);
+    if (!g) return;
+    this.applyStroke(ctx, d);
+    const seg = (a: ScreenPoint, b: ScreenPoint) => {
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.stroke();
+    };
+    seg(g.med0, g.med1);
+    ctx.save();
+    ctx.setLineDash([]);
+    ctx.strokeStyle = this.alpha(d.color, 0.7);
+    ctx.lineWidth = d.lineWidth ?? 2;
+    seg(g.up0, g.up1);
+    seg(g.lo0, g.lo1);
+    ctx.beginPath();
+    ctx.moveTo(g.up0.x, g.up0.y);
+    ctx.lineTo(g.lo0.x, g.lo0.y);
+    ctx.stroke();
+    ctx.restore();
+    if (sel && !d.locked) {
+      this.drawHandle(ctx, g.med0.x, g.med0.y);
+      this.drawHandle(ctx, g.up0.x, g.up0.y);
+      this.drawHandle(ctx, g.lo0.x, g.lo0.y);
+    }
+  }
+
+  private drawFibExt(
+    ctx: CanvasRenderingContext2D,
+    d: FibExtension,
+    sel: boolean
+  ) {
+    const s1 = this.screen(d.p1);
+    const s2 = this.screen(d.p2);
+    const s3 = this.screen(d.p3);
+    if (!s1 || !s2 || !s3) return;
+    // connector p1→p2→p3
+    ctx.save();
+    ctx.setLineDash([4, 3]);
+    ctx.strokeStyle = this.alpha(d.color, 0.4);
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(s1.x, s1.y);
+    ctx.lineTo(s2.x, s2.y);
+    ctx.lineTo(s3.x, s3.y);
+    ctx.stroke();
+    ctx.restore();
+    for (const r of FIB_EXT_LEVELS) {
+      const price = d.p3.price + (d.p2.price - d.p1.price) * r;
+      const ly = this.yOf(price);
+      if (ly == null) continue;
+      ctx.save();
+      ctx.setLineDash([]);
+      ctx.strokeStyle = this.alpha(d.color, r === 1 ? 0.9 : 0.55);
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(s3.x, ly);
+      ctx.lineTo(this.paneWidth, ly);
+      ctx.stroke();
+      ctx.restore();
+      this.label(
+        ctx,
+        `${(r * 100).toFixed(1)}%  ${price.toFixed(2)}`,
+        s3.x + 3,
+        ly - 3,
+        d.color
+      );
+    }
+    if (sel && !d.locked) {
+      this.drawHandle(ctx, s1.x, s1.y);
+      this.drawHandle(ctx, s2.x, s2.y);
+      this.drawHandle(ctx, s3.x, s3.y);
     }
   }
 

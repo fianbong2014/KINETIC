@@ -3,6 +3,7 @@
 import { ChevronDown, Layers, Activity, Save, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { PairSelector } from "@/components/layout/pair-selector";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   CHART_TYPES,
   INDICATOR_META,
@@ -356,6 +357,10 @@ export function TemplateDialog({
   onDelete,
   onClose,
 }: TemplateDialogProps) {
+  const [pendingDelete, setPendingDelete] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
   return (
     <div
       className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"
@@ -398,9 +403,9 @@ export function TemplateDialog({
                   </p>
                 </button>
                 <button
-                  onClick={() => {
-                    if (confirm(`Delete template "${t.name}"?`)) onDelete(t.id);
-                  }}
+                  onClick={() =>
+                    setPendingDelete({ id: t.id, name: t.name })
+                  }
                   className="text-on-surface-variant hover:text-crimson p-1"
                   aria-label="Delete template"
                 >
@@ -411,6 +416,19 @@ export function TemplateDialog({
           )}
         </div>
       </div>
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title="Delete template"
+        message={`Delete template “${pendingDelete?.name ?? ""}”? This can't be undone.`}
+        confirmLabel="Delete"
+        destructive
+        onConfirm={() => {
+          if (pendingDelete) onDelete(pendingDelete.id);
+          setPendingDelete(null);
+        }}
+        onCancel={() => setPendingDelete(null)}
+      />
     </div>
   );
 }

@@ -5,8 +5,14 @@ import {
   ArrowUpRight,
   Camera,
   ChevronDown,
+  Circle,
   Copy,
   GitCommitVertical,
+  Magnet,
+  Redo2,
+  Spline,
+  Undo2,
+  Waypoints,
   Lock,
   LockOpen,
   Maximize2,
@@ -69,7 +75,26 @@ type DrawTool =
   | "fib"
   | "text"
   | "measure"
-  | "position";
+  | "position"
+  | "ellipse"
+  | "fibfan"
+  | "channel"
+  | "pitchfork"
+  | "fibext";
+
+// Tools that need three clicks to define.
+const THREE_POINT_TOOLS = new Set<DrawTool>([
+  "channel",
+  "pitchfork",
+  "fibext",
+]);
+const ONE_POINT_TOOLS = new Set<DrawTool>([
+  "level",
+  "hray",
+  "vline",
+  "text",
+  "position",
+]);
 
 interface ToolDef {
   id: Exclude<DrawTool, "select">;
@@ -98,12 +123,29 @@ const TOOL_GROUPS: { group: string; tools: ToolDef[] }[] = [
     group: "Shapes",
     tools: [
       { id: "rect", label: "Rectangle", icon: <Square size={14} /> },
+      { id: "ellipse", label: "Ellipse", icon: <Circle size={14} /> },
+      {
+        id: "channel",
+        label: "Parallel channel",
+        icon: <Waypoints size={14} />,
+      },
+      {
+        id: "pitchfork",
+        label: "Pitchfork",
+        icon: <Spline size={14} />,
+      },
     ],
   },
   {
     group: "Fib & Measure",
     tools: [
       { id: "fib", label: "Fib retracement", icon: <Triangle size={14} /> },
+      {
+        id: "fibext",
+        label: "Fib extension",
+        icon: <Triangle size={14} />,
+      },
+      { id: "fibfan", label: "Fib fan", icon: <Spline size={14} /> },
       { id: "measure", label: "Measure", icon: <Ruler size={14} /> },
     ],
   },
@@ -171,11 +213,24 @@ export function FullChart({ config }: FullChartProps) {
   const [loading, setLoading] = useState(true);
   const [fullscreen, setFullscreen] = useState(false);
   const [tool, setTool] = useState<DrawTool>("select");
-  const [pendingPoint, setPendingPoint] = useState<Point | null>(null);
+  const [pendingPts, setPendingPts] = useState<Point[]>([]);
   const [drawings, setDrawings] = useState<Drawing[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [clearConfirm, setClearConfirm] = useState(false);
   const [toolMenu, setToolMenu] = useState(false);
+  const [magnet, setMagnet] = useState(false);
+  const [textEdit, setTextEdit] = useState<{
+    id: string;
+    value: string;
+  } | null>(null);
+  // Last-used style applied to new drawings (persisted)
+  const lastStyleRef = useRef<{
+    lineWidth: number;
+    lineStyle: LineStyle;
+  }>({ lineWidth: 2, lineStyle: "solid" });
+  // Undo/redo stacks of drawing snapshots for the active symbol
+  const undoRef = useRef<Drawing[][]>([]);
+  const redoRef = useRef<Drawing[][]>([]);
   // Bumped whenever the price series is rebuilt so the drawings
   // primitive can re-attach to the new series.
   const [priceSeriesVersion, setPriceSeriesVersion] = useState(0);
@@ -324,9 +379,29 @@ export function FullChart({ config }: FullChartProps) {
   useEffect(() => {
     setDrawings(loadDrawings(symbol));
     setTool("select");
-    setPendingPoint(null);
+    setPendingPts([]);
     setSelectedId(null);
+    undoRef.current = [];
+    redoRef.current = [];
   }, [symbol]);
+
+  // ─ Restore last-used drawing style once on mount
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem("kinetic:lastDrawStyle");
+      if (raw) {
+        const s = JSON.parse(raw);
+        if (s && typeof s.lineWidth === "number" && s.lineStyle) {
+          lastStyleRef.current = {
+            lineWidth: s.lineWidth,
+            lineStyle: s.lineStyle,
+          };
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
 
   // ─ Body scroll lock while fullscreen
   useEffect(() => {
@@ -364,6 +439,13 @@ export function FullChart({ config }: FullChartProps) {
     };
   }, [priceSeriesVersion]);
 
+  // Push the pre-change snapshot for undo (clears the redo stack).
+  const pushHistory = useCallback((prev: Drawing[]) => {
+    undoRef.current.push(prev);
+    if (undoRef.current.length > 50) undoRef.current.shift();
+    redoRef.current = [];
+  }, []);
+
   // ─ Pointer interaction: create new drawings + drag handles/bodies
   useEffect(() => {
     const el = containerRef.current;
@@ -380,6 +462,27 @@ export function FullChart({ config }: FullChartProps) {
       saveDrawings(symbolRef.current, next);
     };
 
+    // Magnet: snap a point to the nearest candle's time and the
+    // closest of that candle's OHLC prices.
+    const snap = (pt: Point): Point => {
+      if (!magnet) return pt;
+      const rows = klinesRef.current;
+      if (rows.length === 0) return pt;
+      let best = rows[0];
+      for (const r of rows) {
+        if (
+          Math.abs(r.time - pt.time) < Math.abs(best.time - pt.time)
+        )
+          best = r;
+      }
+      const candidates = [best.open, best.high, best.low, best.close];
+      let price = candidates[0];
+      for (const c of candidates) {
+        if (Math.abs(c - pt.price) < Math.abs(price - pt.price)) price = c;
+      }
+      return { time: best.time, price };
+    };
+
     const setChartInteractive = (on: boolean) => {
       chartRef.current?.applyOptions({
         handleScroll: on,
@@ -394,109 +497,100 @@ export function FullChart({ config }: FullChartProps) {
 
       // Create mode — collect points for the active tool
       if (tool !== "select") {
-        const p = prim.pointFromScreen(x, y);
-        if (!p) return;
+        const raw = prim.pointFromScreen(x, y);
+        if (!raw) return;
+        const p = snap(raw);
         const color = pickColor(drawingsRef.current.length);
+        const st = lastStyleRef.current;
         const id = generateId();
         const sym = symbolRef.current;
+        const base = {
+          id,
+          symbol: sym,
+          color,
+          lineWidth: st.lineWidth,
+          lineStyle: st.lineStyle,
+        };
+        const create = (d: Drawing) => {
+          pushHistory(drawingsRef.current);
+          persist([...drawingsRef.current, d]);
+          setSelectedId(id);
+          setPendingPts([]);
+          setTool("select");
+        };
 
         // ─ Single-click tools
         if (tool === "level") {
           const n = drawingsRef.current.filter(
             (d) => d.type === "level"
           ).length;
-          const lvl: Drawing = {
-            id,
-            type: "level",
-            symbol: sym,
-            price: p.price,
-            label: `L${n + 1}`,
-            color,
-          };
-          persist([...drawingsRef.current, lvl]);
-          setSelectedId(id);
-          setTool("select");
+          create({ ...base, type: "level", price: p.price, label: `L${n + 1}` });
           return;
         }
         if (tool === "hray") {
-          persist([
-            ...drawingsRef.current,
-            { id, type: "hray", symbol: sym, p1: p, color },
-          ]);
-          setSelectedId(id);
-          setTool("select");
+          create({ ...base, type: "hray", p1: p });
           return;
         }
         if (tool === "vline") {
-          persist([
-            ...drawingsRef.current,
-            { id, type: "vline", symbol: sym, time: p.time, color },
-          ]);
-          setSelectedId(id);
-          setTool("select");
+          create({ ...base, type: "vline", time: p.time });
           return;
         }
         if (tool === "text") {
-          const txt = prompt("Note text:", "");
-          if (txt && txt.trim()) {
-            persist([
-              ...drawingsRef.current,
-              {
-                id,
-                type: "text",
-                symbol: sym,
-                p1: p,
-                text: txt.trim(),
-                color,
-              },
-            ]);
-            setSelectedId(id);
-          }
-          setTool("select");
+          const note: Drawing = {
+            ...base,
+            type: "text",
+            p1: p,
+            text: "Text",
+          };
+          create(note);
+          setTextEdit({ id, value: "" });
           return;
         }
         if (tool === "position") {
-          persist([
-            ...drawingsRef.current,
-            {
-              id,
-              type: "position",
-              symbol: sym,
-              side: "long",
-              time: p.time,
-              entry: p.price,
-              target: p.price * 1.02,
-              stop: p.price * 0.99,
-              color,
-            },
-          ]);
-          setSelectedId(id);
-          setTool("select");
+          create({
+            ...base,
+            type: "position",
+            side: "long",
+            time: p.time,
+            entry: p.price,
+            target: p.price * 1.02,
+            stop: p.price * 0.99,
+          });
           return;
         }
 
-        // ─ Two-click tools
-        if (!pendingPoint) {
-          setPendingPoint(p);
+        // ─ Multi-click tools (2 or 3 points)
+        const need = THREE_POINT_TOOLS.has(tool) ? 3 : 2;
+        const pts = [...pendingPts, p];
+        if (pts.length < need) {
+          setPendingPts(pts);
           return;
         }
-        const a = pendingPoint;
+        const [a, b, c] = pts;
         let d: Drawing;
         if (tool === "rect") {
-          d = { id, type: "rect", symbol: sym, p1: a, p2: p, color };
+          d = { ...base, type: "rect", p1: a, p2: b };
         } else if (tool === "fib") {
-          d = { id, type: "fib", symbol: sym, p1: a, p2: p, color };
+          d = { ...base, type: "fib", p1: a, p2: b };
         } else if (tool === "measure") {
-          d = { id, type: "measure", symbol: sym, p1: a, p2: p, color };
+          d = { ...base, type: "measure", p1: a, p2: b };
+        } else if (tool === "ellipse") {
+          d = { ...base, type: "ellipse", p1: a, p2: b };
+        } else if (tool === "fibfan") {
+          d = { ...base, type: "fibfan", p1: a, p2: b };
+        } else if (tool === "channel") {
+          d = { ...base, type: "channel", p1: a, p2: b, p3: c };
+        } else if (tool === "pitchfork") {
+          d = { ...base, type: "pitchfork", p1: a, p2: b, p3: c };
+        } else if (tool === "fibext") {
+          d = { ...base, type: "fibext", p1: a, p2: b, p3: c };
         } else {
-          const [f, s] = a.time <= p.time ? [a, p] : [p, a];
+          const [f, s] = a.time <= b.time ? [a, b] : [b, a];
           d = {
-            id,
+            ...base,
             type: "trendline",
-            symbol: sym,
             p1: f,
             p2: s,
-            color,
             extend:
               tool === "ray"
                 ? "right"
@@ -506,10 +600,7 @@ export function FullChart({ config }: FullChartProps) {
             arrow: tool === "arrow",
           };
         }
-        persist([...drawingsRef.current, d]);
-        setSelectedId(id);
-        setPendingPoint(null);
-        setTool("select");
+        create(d);
         return;
       }
 
@@ -522,6 +613,7 @@ export function FullChart({ config }: FullChartProps) {
         );
         if (!orig || orig.locked) return;
         setSelectedId(handle.drawingId);
+        pushHistory(drawingsRef.current);
         dragRef.current = {
           id: handle.drawingId,
           pointIndex: handle.pointIndex,
@@ -537,6 +629,7 @@ export function FullChart({ config }: FullChartProps) {
       if (hitId && startPt) {
         const orig = drawingsRef.current.find((d) => d.id === hitId);
         if (orig && !orig.locked) {
+          pushHistory(drawingsRef.current);
           dragRef.current = {
             id: hitId,
             pointIndex: "move",
@@ -554,8 +647,9 @@ export function FullChart({ config }: FullChartProps) {
       const prim = primitiveRef.current;
       if (!drag || !prim) return;
       const { x, y } = relpos(e);
-      const cur = prim.pointFromScreen(x, y);
-      if (!cur) return;
+      const raw = prim.pointFromScreen(x, y);
+      if (!raw) return;
+      const cur = snap(raw);
 
       const next = drawingsRef.current.map((d) =>
         d.id === drag.id
@@ -579,38 +673,113 @@ export function FullChart({ config }: FullChartProps) {
       saveDrawings(symbolRef.current, drawingsRef.current);
     };
 
+    // Double-click a text note to edit it.
+    const onDblClick = (e: MouseEvent) => {
+      const prim = primitiveRef.current;
+      if (!prim) return;
+      const { x, y } = relpos(e as unknown as PointerEvent);
+      const id = prim.drawingAt(x, y);
+      if (!id) return;
+      const d = drawingsRef.current.find((dd) => dd.id === id);
+      if (d && d.type === "text") {
+        setSelectedId(id);
+        setTextEdit({ id, value: d.text });
+      }
+    };
+
     el.addEventListener("pointerdown", onPointerDown);
     el.addEventListener("pointermove", onPointerMove);
     el.addEventListener("pointerup", endDrag);
     el.addEventListener("pointercancel", endDrag);
+    el.addEventListener("dblclick", onDblClick);
     return () => {
       el.removeEventListener("pointerdown", onPointerDown);
       el.removeEventListener("pointermove", onPointerMove);
       el.removeEventListener("pointerup", endDrag);
       el.removeEventListener("pointercancel", endDrag);
+      el.removeEventListener("dblclick", onDblClick);
     };
-  }, [tool, pendingPoint]);
+  }, [tool, pendingPts, magnet, pushHistory]);
 
-  const handleRemoveDrawing = useCallback(
-    (id: string) => {
-      setDrawings(removeDrawing(symbol, id));
-      setSelectedId((cur) => (cur === id ? null : cur));
+  const commitTextEdit = useCallback(() => {
+    if (!textEdit) return;
+    const { id, value } = textEdit;
+    setDrawings((cur) => {
+      const next = cur.map((d) =>
+        d.id === id && d.type === "text"
+          ? { ...d, text: value.trim() || "Text" }
+          : d
+      );
+      drawingsRef.current = next;
+      saveDrawings(symbol, next);
+      return next;
+    });
+    setTextEdit(null);
+  }, [textEdit, symbol]);
+
+  const restoreDrawings = useCallback(
+    (snapshot: Drawing[]) => {
+      drawingsRef.current = snapshot;
+      setDrawings(snapshot);
+      saveDrawings(symbol, snapshot);
+      setSelectedId(null);
     },
     [symbol]
   );
 
+  const undo = useCallback(() => {
+    if (undoRef.current.length === 0) return;
+    redoRef.current.push(drawingsRef.current);
+    restoreDrawings(undoRef.current.pop() as Drawing[]);
+  }, [restoreDrawings]);
+
+  const redo = useCallback(() => {
+    if (redoRef.current.length === 0) return;
+    undoRef.current.push(drawingsRef.current);
+    restoreDrawings(redoRef.current.pop() as Drawing[]);
+  }, [restoreDrawings]);
+
+  const handleRemoveDrawing = useCallback(
+    (id: string) => {
+      pushHistory(drawingsRef.current);
+      const next = removeDrawing(symbol, id);
+      drawingsRef.current = next;
+      setDrawings(next);
+      setSelectedId((cur) => (cur === id ? null : cur));
+    },
+    [symbol, pushHistory]
+  );
+
   const confirmClearDrawings = useCallback(() => {
+    pushHistory(drawingsRef.current);
     clearDrawings(symbol);
+    drawingsRef.current = [];
     setDrawings([]);
     setSelectedId(null);
     setClearConfirm(false);
-  }, [symbol]);
+  }, [symbol, pushHistory]);
 
   // Mutate the selected drawing's style (color / width / dash / lock /
   // side) and persist.
   const patchSelected = useCallback(
     (patch: Partial<Drawing>) => {
       if (!selectedId) return;
+      pushHistory(drawingsRef.current);
+      // Remember width/style so new drawings inherit the last choice.
+      if (patch.lineWidth || patch.lineStyle) {
+        lastStyleRef.current = {
+          lineWidth: patch.lineWidth ?? lastStyleRef.current.lineWidth,
+          lineStyle: patch.lineStyle ?? lastStyleRef.current.lineStyle,
+        };
+        try {
+          window.localStorage.setItem(
+            "kinetic:lastDrawStyle",
+            JSON.stringify(lastStyleRef.current)
+          );
+        } catch {
+          // ignore
+        }
+      }
       setDrawings((cur) => {
         const next = cur.map((d) =>
           d.id === selectedId ? ({ ...d, ...patch } as Drawing) : d
@@ -620,11 +789,12 @@ export function FullChart({ config }: FullChartProps) {
         return next;
       });
     },
-    [selectedId, symbol]
+    [selectedId, symbol, pushHistory]
   );
 
   const duplicateSelected = useCallback(() => {
     if (!selectedId) return;
+    pushHistory(drawingsRef.current);
     setDrawings((cur) => {
       const src = cur.find((d) => d.id === selectedId);
       if (!src) return cur;
@@ -635,21 +805,34 @@ export function FullChart({ config }: FullChartProps) {
       setSelectedId(copy.id);
       return next;
     });
-  }, [selectedId, symbol]);
+  }, [selectedId, symbol, pushHistory]);
 
   // ─ Keyboard: Delete removes selection, Esc cancels/deselects
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       const t = e.target as HTMLElement | null;
       if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA")) return;
+      const mod = e.ctrlKey || e.metaKey;
+      if (mod && (e.key === "z" || e.key === "Z")) {
+        e.preventDefault();
+        if (e.shiftKey) redo();
+        else undo();
+        return;
+      }
+      if (mod && (e.key === "y" || e.key === "Y")) {
+        e.preventDefault();
+        redo();
+        return;
+      }
       if (e.key === "Escape") {
-        setPendingPoint(null);
+        setPendingPts([]);
         setSelectedId(null);
         setTool("select");
       } else if (
         (e.key === "Delete" || e.key === "Backspace") &&
         selectedId
       ) {
+        pushHistory(drawingsRef.current);
         const next = removeDrawing(symbol, selectedId);
         setDrawings(next);
         drawingsRef.current = next;
@@ -658,7 +841,7 @@ export function FullChart({ config }: FullChartProps) {
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [selectedId, symbol]);
+  }, [selectedId, symbol, undo, redo, pushHistory]);
 
   const handleScreenshot = useCallback(() => {
     const chart = chartRef.current;
@@ -989,7 +1172,7 @@ export function FullChart({ config }: FullChartProps) {
           active={tool === "select"}
           onClick={() => {
             setTool("select");
-            setPendingPoint(null);
+            setPendingPts([]);
             setToolMenu(false);
           }}
           title="Select / move (Esc)"
@@ -1026,7 +1209,7 @@ export function FullChart({ config }: FullChartProps) {
                       key={t.id}
                       onClick={() => {
                         setTool(t.id);
-                        setPendingPoint(null);
+                        setPendingPts([]);
                         setToolMenu(false);
                       }}
                       className={`w-full flex items-center gap-2.5 px-3 py-1.5 text-xs transition-colors ${
@@ -1045,6 +1228,19 @@ export function FullChart({ config }: FullChartProps) {
           )}
         </div>
 
+        <PaletteBtn
+          active={magnet}
+          onClick={() => setMagnet((v) => !v)}
+          title="Magnet — snap to candle OHLC"
+        >
+          <Magnet size={14} />
+        </PaletteBtn>
+        <PaletteBtn onClick={undo} title="Undo (Ctrl+Z)">
+          <Undo2 size={14} />
+        </PaletteBtn>
+        <PaletteBtn onClick={redo} title="Redo (Ctrl+Shift+Z)">
+          <Redo2 size={14} />
+        </PaletteBtn>
         {activeDrawings.length > 0 && (
           <PaletteBtn
             onClick={() => setClearConfirm(true)}
@@ -1175,15 +1371,11 @@ export function FullChart({ config }: FullChartProps) {
       {/* Drawing-mode banner */}
       {tool !== "select" && (
         <div className="absolute top-12 left-1/2 -translate-x-1/2 z-20 bg-cyan/15 text-cyan text-[10px] font-bold tracking-widest uppercase px-3 py-1 pointer-events-none">
-          {tool === "level" ||
-          tool === "hray" ||
-          tool === "vline" ||
-          tool === "text" ||
-          tool === "position"
+          {ONE_POINT_TOOLS.has(tool)
             ? "Click to place"
-            : pendingPoint
-            ? "Click the second point"
-            : "Click the first point"}
+            : `Click point ${pendingPts.length + 1} of ${
+                THREE_POINT_TOOLS.has(tool) ? 3 : 2
+              }`}
         </div>
       )}
 
@@ -1258,6 +1450,50 @@ export function FullChart({ config }: FullChartProps) {
         onConfirm={confirmClearDrawings}
         onCancel={() => setClearConfirm(false)}
       />
+
+      {textEdit && (
+        <div
+          className="fixed inset-0 z-[70] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setTextEdit(null)}
+        >
+          <div
+            className="bg-surface-container-high w-full max-w-sm shadow-2xl p-5"
+            onClick={(ev) => ev.stopPropagation()}
+          >
+            <h3 className="text-sm font-black font-heading tracking-wider uppercase text-on-surface mb-3">
+              Edit text
+            </h3>
+            <input
+              autoFocus
+              value={textEdit.value}
+              onChange={(ev) =>
+                setTextEdit({ id: textEdit.id, value: ev.target.value })
+              }
+              onKeyDown={(ev) => {
+                if (ev.key === "Enter") commitTextEdit();
+                if (ev.key === "Escape") setTextEdit(null);
+              }}
+              placeholder="Note text"
+              className="w-full bg-surface-container px-3 py-2 text-sm text-on-surface outline-none focus:bg-surface-container-highest"
+            />
+            <div className="flex items-stretch mt-4 border-t border-outline-variant/10 -mx-5 -mb-5">
+              <button
+                onClick={() => setTextEdit(null)}
+                className="flex-1 py-3 text-[10px] font-bold tracking-widest uppercase text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface transition-colors"
+              >
+                Cancel
+              </button>
+              <span className="w-px bg-outline-variant/10" />
+              <button
+                onClick={commitTextEdit}
+                className="flex-1 py-3 text-[10px] font-bold tracking-widest uppercase text-cyan hover:bg-cyan/15 transition-colors"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
