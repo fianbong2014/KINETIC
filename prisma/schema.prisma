@@ -30,6 +30,7 @@ model User {
   customIndicators CustomIndicator[]
   tradingBots   TradingBot[]
   notifications Notification[]
+  exchangeCredentials ExchangeCredential[]
 }
 
 model Account {
@@ -87,6 +88,15 @@ model Position {
   trailingHighWater Float?   // best price reached (high for LONG, low for SHORT)
   pnl              Float?
   status           String    @default("active") // "active" | "closed"
+
+  // Execution mode — "paper" (default, internal accounting only) or "live"
+  // (real order placed on an exchange). For "live" rows we keep the
+  // exchange + remote order ids so we can reconcile state.
+  mode             String    @default("paper")
+  exchange         String?   // e.g. "okx"
+  exchangeOrderId  String?   // OKX ordId
+  exchangeAlgoId   String?   // OKX algoId for SL/TP/trailing (Phase 3)
+
   openedAt         DateTime  @default(now())
   closedAt         DateTime?
   createdAt        DateTime  @default(now())
@@ -128,6 +138,15 @@ model TradingBot {
   // Concurrency
   maxOpenPositions Int      @default(1)     // bot won't open if it already has N active
   cooldownMinutes  Int      @default(60)    // wait N minutes after a trade before next
+
+  // Execution mode — "paper" runs in the in-browser engine and only
+  // touches the DB. "live" places real orders on `exchange` (OKX for
+  // now) via the server-side adapter. Default is intentionally paper
+  // so accidental "Save" never opens a real position.
+  mode            String    @default("paper")
+  exchange        String?   // e.g. "okx" — required when mode = "live"
+  leverage        Int?      // perpetual leverage (1–125 on OKX); null for spot
+  marginMode      String?   // "isolated" | "cross" — OKX perp only
 
   // State
   enabled         Boolean   @default(true)
@@ -222,4 +241,51 @@ model Notification {
   // sorted by createdAt desc.
   @@index([userId, read, archived, createdAt])
   @@index([userId, createdAt])
+}
+
+// ─── Exchange credentials ─────────────────────────────────────
+//
+// API keys for live trading. Secrets are AES-256-GCM encrypted at
+// rest using a key derived from AUTH_SECRET — see src/lib/crypto.ts.
+// We store ciphertext + iv + authTag (all base64) per field. The
+// passphrase column is OKX-specific (their API requires a 3rd factor).
+model ExchangeCredential {
+  id                  String   @id @default(cuid())
+  userId              String
+  exchange            String   // "okx" (currently the only supported one)
+  label               String?  // optional user-given nickname
+
+  // AES-GCM ciphertexts — never logged, never returned by GET
+  apiKeyCipher        String   @db.Text
+  apiKeyIv            String
+  apiKeyTag           String
+
+  apiSecretCipher     String   @db.Text
+  apiSecretIv         String
+  apiSecretTag        String
+
+  passphraseCipher    String?  @db.Text
+  passphraseIv        String?
+  passphraseTag       String?
+
+  // Optional non-secret hints — first/last 4 of the public api key so
+  // the UI can render "OKX • ABCD…1234" without decrypting.
+  apiKeyHint          String?
+
+  // Trade lock — must be true to allow live order placement. Defaults
+  // to false so a freshly-saved key cannot trade until user opts in.
+  tradeEnabled        Boolean  @default(false)
+
+  lastTestedAt        DateTime?
+  lastTestOk          Boolean?
+  lastTestError       String?
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // One credential per user per exchange — keep it simple. If they
+  // need multi-account later, drop this and add a label-based unique.
+  @@unique([userId, exchange])
 }

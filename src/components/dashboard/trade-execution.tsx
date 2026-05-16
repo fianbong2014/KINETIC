@@ -8,6 +8,7 @@ import { usePrice } from "@/components/providers/price-provider";
 import { useToast } from "@/components/providers/toast-provider";
 import { writeNotification } from "@/hooks/use-notifications";
 import { formatPrice, formatUsd } from "@/lib/format";
+import { isLiveTradable } from "@/lib/symbols";
 
 export function TradeExecution() {
   const { create } = usePositions();
@@ -16,6 +17,8 @@ export function TradeExecution() {
   const { price: livePrice, symbol, pair } = usePrice();
   const toast = useToast();
 
+  const [tradeMode, setTradeMode] = useState<"paper" | "live">("paper");
+  const [leverage, setLeverage] = useState("3");
   const [orderType, setOrderType] = useState<"MARKET" | "LIMIT">("MARKET");
   const [amount, setAmount] = useState("0.05");
   const [stopLoss, setStopLoss] = useState("");
@@ -30,12 +33,32 @@ export function TradeExecution() {
 
   const confirmBeforeOpen = settings.trading?.confirmBeforeOpen ?? true;
 
+  const liveAvailable = isLiveTradable(symbol);
+
   async function handleSubmit(side: "LONG" | "SHORT") {
     setMessage(null);
     const size = parseFloat(amount);
     if (isNaN(size) || size <= 0) {
       setMessage({ type: "err", text: "Invalid amount" });
       return;
+    }
+
+    const isLive = tradeMode === "live";
+    if (isLive) {
+      if (!liveAvailable) {
+        setMessage({
+          type: "err",
+          text: `${pair.base} not available for live trading on OKX`,
+        });
+        return;
+      }
+      if (orderType === "LIMIT") {
+        setMessage({
+          type: "err",
+          text: "Live mode supports MARKET orders only (Phase 2)",
+        });
+        return;
+      }
     }
 
     const entryPrice =
@@ -53,7 +76,9 @@ export function TradeExecution() {
 
     const notional = size * entryPrice;
 
-    if (notional > balance) {
+    // Paper balance check only applies to paper trades — live trades
+    // draw on OKX margin (with leverage), not the in-app paper balance.
+    if (!isLive && notional > balance) {
       setMessage({
         type: "err",
         text: `Exceeds balance ($${formatPrice(balance)})`,
@@ -89,12 +114,23 @@ export function TradeExecution() {
       }
     }
 
-    if (
-      confirmBeforeOpen &&
-      !confirm(
-        `${side} ${size} ${pair.base} @ $${formatPrice(entryPrice)}\nNotional: ${formatUsd(notional)}\n\nPlace order?`
-      )
-    ) {
+    const lev = isLive
+      ? Math.max(1, Math.min(125, Math.floor(parseFloat(leverage) || 3)))
+      : undefined;
+
+    // Live orders ALWAYS confirm (ignore the paper "confirmBeforeOpen"
+    // preference) and the dialog is explicit about real funds.
+    const confirmText = isLive
+      ? `⚠️ LIVE OKX ORDER — REAL FUNDS\n\n${side} ${size} ${pair.base} @ ~$${formatPrice(
+          entryPrice
+        )}\nLeverage: ${lev}x · Notional ~${formatUsd(
+          notional
+        )}\n\nPlace REAL market order on OKX?`
+      : `${side} ${size} ${pair.base} @ $${formatPrice(
+          entryPrice
+        )}\nNotional: ${formatUsd(notional)}\n\nPlace order?`;
+
+    if ((isLive || confirmBeforeOpen) && !confirm(confirmText)) {
       return;
     }
 
@@ -108,17 +144,20 @@ export function TradeExecution() {
         stopLoss: sl,
         takeProfit: tp,
         trailingDistance: trail && trail > 0 ? trail : undefined,
+        mode: tradeMode,
+        leverage: lev,
       });
       notifyAccountChanged();
-      const successMsg = `${side} ${size} ${pair.base} @ $${formatPrice(entryPrice)}`;
+      const tag = isLive ? "[LIVE] " : "";
+      const successMsg = `${tag}${side} ${size} ${pair.base} @ $${formatPrice(entryPrice)}`;
       setMessage({ type: "ok", text: successMsg });
       toast.success(
-        `${side} Order Placed`,
+        `${tag}${side} Order Placed`,
         `${size} ${pair.base} @ $${formatPrice(entryPrice)} · Notional ${formatUsd(notional)}`
       );
       writeNotification({
         type: "trade",
-        title: `${side} Order Placed`,
+        title: `${tag}${side} Order Placed`,
         body: `${size} ${pair.base} @ $${formatPrice(entryPrice)} · Notional ${formatUsd(notional)}`,
         meta: {
           symbol,
@@ -126,6 +165,7 @@ export function TradeExecution() {
           size,
           entry: entryPrice,
           notional,
+          mode: tradeMode,
         },
       });
       // Clear form
@@ -147,13 +187,68 @@ export function TradeExecution() {
 
   return (
     <section className="bg-surface-container-high p-5 space-y-4">
+      {/* Paper / Live mode toggle */}
+      <div className="space-y-2">
+        <div className="flex gap-2">
+          <button
+            onClick={() => setTradeMode("paper")}
+            className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest transition-colors ${
+              tradeMode === "paper"
+                ? "bg-on-surface text-surface-container-lowest"
+                : "bg-surface-container-lowest text-on-surface-variant"
+            }`}
+          >
+            Paper
+          </button>
+          <button
+            onClick={() => {
+              if (!liveAvailable) return;
+              setTradeMode("live");
+              setOrderType("MARKET");
+            }}
+            disabled={!liveAvailable}
+            title={
+              liveAvailable
+                ? "Place real orders on OKX"
+                : `${pair.base} not available for live trading on OKX`
+            }
+            className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest transition-colors ${
+              tradeMode === "live"
+                ? "bg-crimson text-white"
+                : "bg-surface-container-lowest text-on-surface-variant"
+            } ${!liveAvailable ? "opacity-40 cursor-not-allowed" : ""}`}
+          >
+            Live ⚠
+          </button>
+        </div>
+        {tradeMode === "live" && (
+          <div className="flex items-center gap-2 bg-crimson/10 p-2">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-crimson shrink-0">
+              Leverage
+            </span>
+            <input
+              type="number"
+              min={1}
+              max={125}
+              step={1}
+              value={leverage}
+              onChange={(e) => setLeverage(e.target.value)}
+              className="w-16 bg-surface-container-lowest text-xs font-bold py-1 px-2 text-on-surface focus:ring-1 focus:ring-crimson outline-none tabular-nums"
+            />
+            <span className="text-[9px] text-on-surface-variant leading-tight">
+              REAL funds on OKX · requires trade lock ENABLED in Settings
+            </span>
+          </div>
+        )}
+      </div>
+
       {/* Market / Limit toggle */}
       <div className="flex gap-2">
         <button
           onClick={() => setOrderType("MARKET")}
           className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest transition-colors ${
             orderType === "MARKET"
-              ? "bg-cyan text-[#004343]"
+              ? "bg-cyan text-primary-foreground"
               : "bg-surface-container-lowest text-on-surface-variant"
           }`}
         >
@@ -163,7 +258,7 @@ export function TradeExecution() {
           onClick={() => setOrderType("LIMIT")}
           className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest transition-colors ${
             orderType === "LIMIT"
-              ? "bg-cyan text-[#004343]"
+              ? "bg-cyan text-primary-foreground"
               : "bg-surface-container-lowest text-on-surface-variant"
           }`}
         >
@@ -282,7 +377,7 @@ export function TradeExecution() {
         <button
           onClick={() => handleSubmit("SHORT")}
           disabled={submitting}
-          className="flex-1 bg-orange text-[#430b00] py-4 font-heading font-black uppercase tracking-tighter hover:brightness-110 active:scale-95 transition-all text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+          className="flex-1 bg-orange text-secondary-foreground py-4 font-heading font-black uppercase tracking-tighter hover:brightness-110 active:scale-95 transition-all text-sm disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {submitting ? "..." : "Sell / Short"}
         </button>

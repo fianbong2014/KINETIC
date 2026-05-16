@@ -16,6 +16,9 @@ export interface Position {
   pnl: number | null;
   status: "active" | "closed";
   botId: string | null;
+  mode: "paper" | "live";
+  exchange: string | null;
+  exchangeOrderId: string | null;
   openedAt: string;
   closedAt: string | null;
 }
@@ -28,6 +31,10 @@ export interface NewPosition {
   stopLoss?: number;
   takeProfit?: number;
   trailingDistance?: number;
+  // "paper" (default) or "live" — live places a real OKX perp order
+  mode?: "paper" | "live";
+  leverage?: number;
+  marginMode?: "isolated" | "cross";
 }
 
 export function usePositions(status: "active" | "closed" | "all" = "active") {

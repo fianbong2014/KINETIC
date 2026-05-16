@@ -5,6 +5,7 @@ import { DisplaySettings } from "@/components/settings/display-settings";
 import { ApiConnections } from "@/components/settings/api-connections";
 import { AccountSettings } from "@/components/settings/account-settings";
 import { CustomIndicatorsSettings } from "@/components/settings/custom-indicators-settings";
+import { OkxConnection } from "@/components/settings/okx-connection";
 
 export default function SettingsPage() {
   return (
@@ -12,6 +13,7 @@ export default function SettingsPage() {
       {/* Left Column */}
       <div className="col-span-12 xl:col-span-4 flex flex-col gap-3 lg:gap-6">
         <AccountSettings />
+        <OkxConnection />
         <ApiConnections />
       </div>
 
