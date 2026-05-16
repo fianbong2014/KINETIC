@@ -7,6 +7,7 @@ import {
   TemplateDialog,
 } from "@/components/chart/chart-toolbar";
 import { OscillatorPane } from "@/components/chart/oscillator-pane";
+import { TradingViewChart } from "@/components/chart/tradingview-chart";
 import {
   DEFAULT_CHART_CONFIG,
   deleteTemplate,
@@ -74,30 +75,66 @@ export default function ChartPage() {
         templateCount={templates.length}
       />
 
-      {/* Active indicator legend */}
-      {Object.values(config.indicators).some(Boolean) && (
-        <div className="px-3 -mt-1">
-          <IndicatorLegend indicators={config.indicators} />
-        </div>
-      )}
-
-      {/* Main chart — sized large for a focused experience */}
-      <div className="bg-surface-container-low">
-        <div className="h-[480px] md:h-[560px] xl:h-[640px] 2xl:h-[720px]">
-          <FullChart config={config} />
-        </div>
-      </div>
-
-      {/* Oscillator panes — show only when toggled on */}
-      {config.oscillators.rsi && (
+      {config.engine === "tradingview" ? (
         <div className="bg-surface-container-low">
-          <OscillatorPane type="rsi" timeframe={config.timeframe} height={140} />
+          <div className="h-[480px] md:h-[620px] xl:h-[720px] 2xl:h-[820px]">
+            <TradingViewChart timeframe={config.timeframe} />
+          </div>
         </div>
-      )}
-      {config.oscillators.macd && (
-        <div className="bg-surface-container-low">
-          <OscillatorPane type="macd" timeframe={config.timeframe} height={160} />
-        </div>
+      ) : (
+        <>
+          {/* Active indicator legend */}
+          {Object.values(config.indicators).some(Boolean) && (
+            <div className="px-3 -mt-1">
+              <IndicatorLegend indicators={config.indicators} />
+            </div>
+          )}
+
+          {/* Main chart — sized large for a focused experience */}
+          <div className="bg-surface-container-low">
+            <div className="h-[480px] md:h-[560px] xl:h-[640px] 2xl:h-[720px]">
+              <FullChart config={config} />
+            </div>
+          </div>
+
+          {/* Oscillator panes — show only when toggled on */}
+          {config.oscillators.rsi && (
+            <div className="bg-surface-container-low">
+              <OscillatorPane
+                type="rsi"
+                timeframe={config.timeframe}
+                height={140}
+              />
+            </div>
+          )}
+          {config.oscillators.macd && (
+            <div className="bg-surface-container-low">
+              <OscillatorPane
+                type="macd"
+                timeframe={config.timeframe}
+                height={160}
+              />
+            </div>
+          )}
+          {config.oscillators.stoch && (
+            <div className="bg-surface-container-low">
+              <OscillatorPane
+                type="stoch"
+                timeframe={config.timeframe}
+                height={140}
+              />
+            </div>
+          )}
+          {config.oscillators.atr && (
+            <div className="bg-surface-container-low">
+              <OscillatorPane
+                type="atr"
+                timeframe={config.timeframe}
+                height={140}
+              />
+            </div>
+          )}
+        </>
       )}
 
       {templateDialog && (

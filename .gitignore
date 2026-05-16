@@ -37,6 +37,11 @@ yarn-error.log*
 # vercel
 .vercel
 
+# TradingView Charting Library — gated by TradingView, must NOT be
+# committed/redistributed. Drop the granted files here locally.
+/public/charting_library/
+/public/datafeeds/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

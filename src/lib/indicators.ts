@@ -130,6 +130,173 @@ export function macd(
   return { macd: macdLine, signal: signalLine, histogram };
 }
 
+// ─── Stochastic Oscillator ────────────────────────────────────────────
+
+export interface StochasticValues {
+  k: (number | null)[];
+  d: (number | null)[];
+}
+
+/**
+ * Stochastic oscillator. %K = position of close within the high/low
+ * range over `kPeriod`, smoothed by `smooth`. %D = SMA of %K over
+ * `dPeriod`. Both series are length-aligned to the input candles.
+ */
+export function stochastic(
+  highs: number[],
+  lows: number[],
+  closes: number[],
+  kPeriod = 14,
+  dPeriod = 3,
+  smooth = 3
+): StochasticValues {
+  const n = closes.length;
+  const rawK: (number | null)[] = Array(n).fill(null);
+
+  for (let i = kPeriod - 1; i < n; i++) {
+    let hh = -Infinity;
+    let ll = Infinity;
+    for (let j = i - kPeriod + 1; j <= i; j++) {
+      if (highs[j] > hh) hh = highs[j];
+      if (lows[j] < ll) ll = lows[j];
+    }
+    const range = hh - ll;
+    rawK[i] = range === 0 ? 100 : ((closes[i] - ll) / range) * 100;
+  }
+
+  const smoothK = sma(
+    rawK.map((v) => (v === null ? 0 : v)),
+    smooth
+  ).map((v, i) => (rawK[i] === null ? null : v));
+
+  const d = sma(
+    smoothK.map((v) => (v === null ? 0 : v)),
+    dPeriod
+  ).map((v, i) => (smoothK[i] === null ? null : v));
+
+  return { k: smoothK, d };
+}
+
+// ─── Average True Range ───────────────────────────────────────────────
+
+/**
+ * Average True Range (Wilder's smoothing). Measures volatility as the
+ * smoothed average of true range over `period`.
+ */
+export function atr(
+  highs: number[],
+  lows: number[],
+  closes: number[],
+  period = 14
+): (number | null)[] {
+  const n = closes.length;
+  const out: (number | null)[] = Array(n).fill(null);
+  if (n < period + 1) return out;
+
+  const tr: number[] = [0];
+  for (let i = 1; i < n; i++) {
+    tr.push(
+      Math.max(
+        highs[i] - lows[i],
+        Math.abs(highs[i] - closes[i - 1]),
+        Math.abs(lows[i] - closes[i - 1])
+      )
+    );
+  }
+
+  let prev = 0;
+  for (let i = 1; i <= period; i++) prev += tr[i];
+  prev /= period;
+  out[period] = prev;
+
+  for (let i = period + 1; i < n; i++) {
+    prev = (prev * (period - 1) + tr[i]) / period;
+    out[i] = prev;
+  }
+
+  return out;
+}
+
+// ─── On-Balance Volume ────────────────────────────────────────────────
+
+export function obv(closes: number[], volumes: number[]): (number | null)[] {
+  const out: (number | null)[] = [];
+  let acc = 0;
+  for (let i = 0; i < closes.length; i++) {
+    if (i === 0) {
+      out.push(0);
+      continue;
+    }
+    if (closes[i] > closes[i - 1]) acc += volumes[i];
+    else if (closes[i] < closes[i - 1]) acc -= volumes[i];
+    out.push(acc);
+  }
+  return out;
+}
+
+// ─── Supertrend ───────────────────────────────────────────────────────
+
+export interface SupertrendValues {
+  line: (number | null)[];
+  direction: (1 | -1 | null)[]; // 1 = uptrend, -1 = downtrend
+}
+
+/**
+ * Supertrend overlay. Uses ATR-based upper/lower bands; flips trend
+ * when price closes through the active band. `line` is the active band
+ * value at each candle, `direction` is the trend sign.
+ */
+export function supertrend(
+  highs: number[],
+  lows: number[],
+  closes: number[],
+  period = 10,
+  multiplier = 3
+): SupertrendValues {
+  const n = closes.length;
+  const line: (number | null)[] = Array(n).fill(null);
+  const direction: (1 | -1 | null)[] = Array(n).fill(null);
+  const atrVals = atr(highs, lows, closes, period);
+
+  let prevUpper = 0;
+  let prevLower = 0;
+  let prevDir: 1 | -1 = 1;
+
+  for (let i = 0; i < n; i++) {
+    const a = atrVals[i];
+    if (a === null) continue;
+
+    const mid = (highs[i] + lows[i]) / 2;
+    let upper = mid + multiplier * a;
+    let lower = mid - multiplier * a;
+
+    if (prevUpper !== 0) {
+      upper =
+        upper < prevUpper || closes[i - 1] > prevUpper ? upper : prevUpper;
+      lower =
+        lower > prevLower || closes[i - 1] < prevLower ? lower : prevLower;
+    }
+
+    let dir: 1 | -1;
+    if (prevUpper === 0) {
+      dir = closes[i] > mid ? 1 : -1;
+    } else if (prevDir === 1) {
+      dir = closes[i] < prevLower ? -1 : 1;
+    } else {
+      dir = closes[i] > prevUpper ? 1 : -1;
+    }
+
+    line[i] = dir === 1 ? lower : upper;
+    direction[i] = dir;
+
+    prevUpper = upper;
+    prevLower = lower;
+    prevDir = dir;
+  }
+
+  return { line, direction };
+}
+
 // ─── Cross detection ──────────────────────────────────────────────────
 
 /**

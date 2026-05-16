@@ -8,11 +8,17 @@ import {
   INDICATOR_META,
   TIMEFRAMES,
   type ChartConfig,
+  type ChartEngine,
   type ChartType,
   type IndicatorToggles,
   type OscillatorToggles,
   type Timeframe,
 } from "@/lib/chart-config";
+
+const ENGINES: { id: ChartEngine; label: string }[] = [
+  { id: "lightweight", label: "Lite" },
+  { id: "tradingview", label: "TradingView" },
+];
 
 interface ChartToolbarProps {
   config: ChartConfig;
@@ -47,6 +53,9 @@ export function ChartToolbar({
       oscillators: { ...config.oscillators, [key]: !config.oscillators[key] },
     });
   }
+  function setEngine(engine: ChartEngine) {
+    onConfigChange({ ...config, engine });
+  }
 
   return (
     <div className="bg-surface-container-low border-b border-outline-variant/10 flex flex-wrap items-center gap-1.5 lg:gap-2 px-3 py-2">
@@ -74,8 +83,29 @@ export function ChartToolbar({
 
       <Divider />
 
-      {/* Chart type */}
-      <Dropdown
+      {/* Engine switch */}
+      <div className="flex bg-surface-container">
+        {ENGINES.map((e) => (
+          <button
+            key={e.id}
+            onClick={() => setEngine(e.id)}
+            className={`px-2 py-1 text-[10px] font-bold tracking-widest uppercase transition-colors ${
+              config.engine === e.id
+                ? "bg-cyan/15 text-cyan"
+                : "text-on-surface-variant hover:text-on-surface"
+            }`}
+          >
+            {e.label}
+          </button>
+        ))}
+      </div>
+
+      {config.engine === "lightweight" && (
+        <>
+          <Divider />
+
+          {/* Chart type */}
+          <Dropdown
         label={CHART_TYPES.find((c) => c.id === config.chartType)?.label || "Type"}
         icon={null}
       >
@@ -166,8 +196,22 @@ export function ChartToolbar({
             on={config.oscillators.macd}
             onClick={() => toggleOscillator("macd")}
           />
+          <OscRow
+            label="Stochastic 14,3,3"
+            description="%K / %D overbought-oversold"
+            on={config.oscillators.stoch}
+            onClick={() => toggleOscillator("stoch")}
+          />
+          <OscRow
+            label="ATR 14"
+            description="Average true range volatility"
+            on={config.oscillators.atr}
+            onClick={() => toggleOscillator("atr")}
+          />
         </div>
       </Dropdown>
+        </>
+      )}
 
       <Divider />
 

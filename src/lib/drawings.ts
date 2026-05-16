@@ -11,16 +11,49 @@ export interface HorizontalLevel {
   color: string;
 }
 
+export interface Point {
+  time: number;
+  price: number;
+}
+
 export interface TrendLine {
   id: string;
   type: "trendline";
   symbol: string;
-  p1: { time: number; price: number };
-  p2: { time: number; price: number };
+  p1: Point;
+  p2: Point;
+  color: string;
+  // When true the segment is extended forward past p2 (a ray).
+  ray?: boolean;
+}
+
+export interface RectZone {
+  id: string;
+  type: "rect";
+  symbol: string;
+  p1: Point;
+  p2: Point;
   color: string;
 }
 
-export type Drawing = HorizontalLevel | TrendLine;
+export interface FibRetracement {
+  id: string;
+  type: "fib";
+  symbol: string;
+  // p1 = swing start (level 0), p2 = swing end (level 1)
+  p1: Point;
+  p2: Point;
+  color: string;
+}
+
+export type Drawing =
+  | HorizontalLevel
+  | TrendLine
+  | RectZone
+  | FibRetracement;
+
+// Fibonacci retracement levels rendered between p1 and p2.
+export const FIB_LEVELS = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1] as const;
 
 const STORAGE_PREFIX = "kinetic:drawings:";
 

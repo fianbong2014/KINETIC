@@ -39,17 +39,23 @@ export interface IndicatorToggles {
   sma50: boolean;
   bbands: boolean; // Bollinger Bands (20, 2)
   vwap: boolean;
+  supertrend: boolean; // ATR-based trend overlay (10, 3)
   volume: boolean;
 }
 
 export interface OscillatorToggles {
   rsi: boolean;
   macd: boolean;
+  stoch: boolean; // Stochastic %K/%D (14, 3, 3)
+  atr: boolean; // Average True Range (14)
 }
+
+export type ChartEngine = "lightweight" | "tradingview";
 
 export interface ChartConfig {
   timeframe: Timeframe;
   chartType: ChartType;
+  engine: ChartEngine;
   indicators: IndicatorToggles;
   oscillators: OscillatorToggles;
 }
@@ -57,6 +63,7 @@ export interface ChartConfig {
 export const DEFAULT_CHART_CONFIG: ChartConfig = {
   timeframe: "1h",
   chartType: "candles",
+  engine: "lightweight",
   indicators: {
     ema20: true,
     ema50: true,
@@ -64,11 +71,14 @@ export const DEFAULT_CHART_CONFIG: ChartConfig = {
     sma50: false,
     bbands: false,
     vwap: false,
+    supertrend: false,
     volume: true,
   },
   oscillators: {
     rsi: true,
     macd: false,
+    stoch: false,
+    atr: false,
   },
 };
 
@@ -107,6 +117,11 @@ export const INDICATOR_META: Record<
     label: "VWAP",
     color: "#ff716c",
     description: "Volume-weighted average price",
+  },
+  supertrend: {
+    label: "Supertrend",
+    color: "#50c878",
+    description: "ATR trend flip · 10, 3",
   },
   volume: {
     label: "Volume",

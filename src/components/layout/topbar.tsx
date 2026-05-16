@@ -27,7 +27,7 @@ export function Topbar() {
 
   return (
     <>
-      <header className="px-4 lg:px-6 py-3 lg:py-4 bg-background flex items-center justify-between gap-3">
+      <header className="px-4 lg:px-6 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 lg:pt-4 lg:pb-4 bg-background flex items-center justify-between gap-3">
         {/* Left: Branding + Nav */}
         <div className="flex items-center gap-4 lg:gap-8 min-w-0">
           <Link href="/dashboard" className="shrink-0">
