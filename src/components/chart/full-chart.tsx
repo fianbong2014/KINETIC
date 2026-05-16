@@ -2,29 +2,44 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  ArrowUpRight,
   Camera,
-  Crosshair,
+  ChevronDown,
+  Copy,
+  GitCommitVertical,
+  Lock,
+  LockOpen,
   Maximize2,
   Minimize2,
   Minus,
   MousePointer2,
+  MoveRight,
+  Ruler,
   Square,
+  Target,
   Trash2,
   TrendingUp,
   Triangle,
+  Type,
 } from "lucide-react";
 import { usePrice } from "@/components/providers/price-provider";
 import {
   clearDrawings,
+  drawingLabel,
+  DRAWING_COLORS,
   generateId,
   loadDrawings,
   pickColor,
   removeDrawing,
   saveDrawings,
   type Drawing,
+  type LineStyle,
   type Point,
 } from "@/lib/drawings";
-import { DrawingsPrimitive } from "@/lib/chart/drawings-primitive";
+import {
+  applyDrag,
+  DrawingsPrimitive,
+} from "@/lib/chart/drawings-primitive";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   bollingerBands,
@@ -44,10 +59,71 @@ interface FullChartProps {
 type DrawTool =
   | "select"
   | "level"
+  | "hray"
+  | "vline"
   | "trendline"
   | "ray"
+  | "extline"
+  | "arrow"
   | "rect"
-  | "fib";
+  | "fib"
+  | "text"
+  | "measure"
+  | "position";
+
+interface ToolDef {
+  id: Exclude<DrawTool, "select">;
+  label: string;
+  icon: React.ReactNode;
+}
+
+const TOOL_GROUPS: { group: string; tools: ToolDef[] }[] = [
+  {
+    group: "Lines",
+    tools: [
+      { id: "trendline", label: "Trend line", icon: <TrendingUp size={14} /> },
+      { id: "ray", label: "Ray", icon: <MoveRight size={14} /> },
+      { id: "extline", label: "Extended line", icon: <Minus size={14} /> },
+      { id: "arrow", label: "Arrow", icon: <ArrowUpRight size={14} /> },
+      { id: "level", label: "Horizontal level", icon: <Minus size={14} /> },
+      { id: "hray", label: "Horizontal ray", icon: <MoveRight size={14} /> },
+      {
+        id: "vline",
+        label: "Vertical line",
+        icon: <GitCommitVertical size={14} />,
+      },
+    ],
+  },
+  {
+    group: "Shapes",
+    tools: [
+      { id: "rect", label: "Rectangle", icon: <Square size={14} /> },
+    ],
+  },
+  {
+    group: "Fib & Measure",
+    tools: [
+      { id: "fib", label: "Fib retracement", icon: <Triangle size={14} /> },
+      { id: "measure", label: "Measure", icon: <Ruler size={14} /> },
+    ],
+  },
+  {
+    group: "Annotate",
+    tools: [{ id: "text", label: "Text note", icon: <Type size={14} /> }],
+  },
+  {
+    group: "Trade",
+    tools: [
+      {
+        id: "position",
+        label: "Long/Short position",
+        icon: <Target size={14} />,
+      },
+    ],
+  },
+];
+
+const LINE_STYLES: LineStyle[] = ["solid", "dashed", "dotted"];
 
 interface KlineRow {
   time: number;
@@ -99,6 +175,7 @@ export function FullChart({ config }: FullChartProps) {
   const [drawings, setDrawings] = useState<Drawing[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [clearConfirm, setClearConfirm] = useState(false);
+  const [toolMenu, setToolMenu] = useState(false);
   // Bumped whenever the price series is rebuilt so the drawings
   // primitive can re-attach to the new series.
   const [priceSeriesVersion, setPriceSeriesVersion] = useState(0);
@@ -130,9 +207,8 @@ export function FullChart({ config }: FullChartProps) {
   // Active drag operation
   const dragRef = useRef<{
     id: string;
-    mode: "p1" | "p2" | "move";
-    startX: number;
-    startY: number;
+    pointIndex: number | "move";
+    start: Point;
     orig: Drawing;
   } | null>(null);
   // Latest klines for crosshair readout without re-subscribing
@@ -320,80 +396,136 @@ export function FullChart({ config }: FullChartProps) {
       if (tool !== "select") {
         const p = prim.pointFromScreen(x, y);
         if (!p) return;
+        const color = pickColor(drawingsRef.current.length);
+        const id = generateId();
+        const sym = symbolRef.current;
+
+        // ─ Single-click tools
         if (tool === "level") {
-          const count = drawingsRef.current.filter(
+          const n = drawingsRef.current.filter(
             (d) => d.type === "level"
           ).length;
           const lvl: Drawing = {
-            id: generateId(),
+            id,
             type: "level",
-            symbol: symbolRef.current,
+            symbol: sym,
             price: p.price,
-            label: `L${count + 1}`,
-            color: pickColor(drawingsRef.current.length),
+            label: `L${n + 1}`,
+            color,
           };
           persist([...drawingsRef.current, lvl]);
-          setSelectedId(lvl.id);
+          setSelectedId(id);
           setTool("select");
           return;
         }
+        if (tool === "hray") {
+          persist([
+            ...drawingsRef.current,
+            { id, type: "hray", symbol: sym, p1: p, color },
+          ]);
+          setSelectedId(id);
+          setTool("select");
+          return;
+        }
+        if (tool === "vline") {
+          persist([
+            ...drawingsRef.current,
+            { id, type: "vline", symbol: sym, time: p.time, color },
+          ]);
+          setSelectedId(id);
+          setTool("select");
+          return;
+        }
+        if (tool === "text") {
+          const txt = prompt("Note text:", "");
+          if (txt && txt.trim()) {
+            persist([
+              ...drawingsRef.current,
+              {
+                id,
+                type: "text",
+                symbol: sym,
+                p1: p,
+                text: txt.trim(),
+                color,
+              },
+            ]);
+            setSelectedId(id);
+          }
+          setTool("select");
+          return;
+        }
+        if (tool === "position") {
+          persist([
+            ...drawingsRef.current,
+            {
+              id,
+              type: "position",
+              symbol: sym,
+              side: "long",
+              time: p.time,
+              entry: p.price,
+              target: p.price * 1.02,
+              stop: p.price * 0.99,
+              color,
+            },
+          ]);
+          setSelectedId(id);
+          setTool("select");
+          return;
+        }
+
+        // ─ Two-click tools
         if (!pendingPoint) {
           setPendingPoint(p);
           return;
         }
         const a = pendingPoint;
-        const color = pickColor(drawingsRef.current.length);
         let d: Drawing;
         if (tool === "rect") {
-          d = {
-            id: generateId(),
-            type: "rect",
-            symbol: symbolRef.current,
-            p1: a,
-            p2: p,
-            color,
-          };
+          d = { id, type: "rect", symbol: sym, p1: a, p2: p, color };
         } else if (tool === "fib") {
-          d = {
-            id: generateId(),
-            type: "fib",
-            symbol: symbolRef.current,
-            p1: a,
-            p2: p,
-            color,
-          };
+          d = { id, type: "fib", symbol: sym, p1: a, p2: p, color };
+        } else if (tool === "measure") {
+          d = { id, type: "measure", symbol: sym, p1: a, p2: p, color };
         } else {
           const [f, s] = a.time <= p.time ? [a, p] : [p, a];
           d = {
-            id: generateId(),
+            id,
             type: "trendline",
-            symbol: symbolRef.current,
+            symbol: sym,
             p1: f,
             p2: s,
             color,
-            ray: tool === "ray",
+            extend:
+              tool === "ray"
+                ? "right"
+                : tool === "extline"
+                ? "both"
+                : "none",
+            arrow: tool === "arrow",
           };
         }
         persist([...drawingsRef.current, d]);
-        setSelectedId(d.id);
+        setSelectedId(id);
         setPendingPoint(null);
         setTool("select");
         return;
       }
 
       // Select / drag mode
+      const startPt = prim.pointFromScreen(x, y);
       const handle = prim.handleAt(x, y);
-      if (handle) {
+      if (handle && startPt) {
         const orig = drawingsRef.current.find(
           (d) => d.id === handle.drawingId
         );
-        if (!orig) return;
+        if (!orig || orig.locked) return;
         setSelectedId(handle.drawingId);
         dragRef.current = {
           id: handle.drawingId,
-          mode: handle.pointIndex === 0 ? "p1" : "p2",
-          startX: x,
-          startY: y,
+          pointIndex: handle.pointIndex,
+          start: startPt,
           orig,
         };
         setChartInteractive(false);
@@ -402,14 +534,13 @@ export function FullChart({ config }: FullChartProps) {
       }
       const hitId = prim.drawingAt(x, y);
       setSelectedId(hitId);
-      if (hitId) {
+      if (hitId && startPt) {
         const orig = drawingsRef.current.find((d) => d.id === hitId);
-        if (orig) {
+        if (orig && !orig.locked) {
           dragRef.current = {
             id: hitId,
-            mode: "move",
-            startX: x,
-            startY: y,
+            pointIndex: "move",
+            start: startPt,
             orig,
           };
           setChartInteractive(false);
@@ -426,28 +557,11 @@ export function FullChart({ config }: FullChartProps) {
       const cur = prim.pointFromScreen(x, y);
       if (!cur) return;
 
-      const next = drawingsRef.current.map((d) => {
-        if (d.id !== drag.id) return d;
-        if (d.type === "level") {
-          return { ...d, price: cur.price };
-        }
-        const o = drag.orig as Extract<
-          Drawing,
-          { p1: Point; p2: Point }
-        >;
-        if (drag.mode === "p1") return { ...d, p1: cur };
-        if (drag.mode === "p2") return { ...d, p2: cur };
-        // move: shift both points by the drag delta in data space
-        const start = prim.pointFromScreen(drag.startX, drag.startY);
-        if (!start) return d;
-        const dt = cur.time - start.time;
-        const dp = cur.price - start.price;
-        return {
-          ...d,
-          p1: { time: o.p1.time + dt, price: o.p1.price + dp },
-          p2: { time: o.p2.time + dt, price: o.p2.price + dp },
-        };
-      });
+      const next = drawingsRef.current.map((d) =>
+        d.id === drag.id
+          ? applyDrag(d, drag.pointIndex, cur, drag.start, drag.orig)
+          : d
+      );
       drawingsRef.current = next;
       setDrawings(next);
       prim.redraw();
@@ -491,6 +605,60 @@ export function FullChart({ config }: FullChartProps) {
     setSelectedId(null);
     setClearConfirm(false);
   }, [symbol]);
+
+  // Mutate the selected drawing's style (color / width / dash / lock /
+  // side) and persist.
+  const patchSelected = useCallback(
+    (patch: Partial<Drawing>) => {
+      if (!selectedId) return;
+      setDrawings((cur) => {
+        const next = cur.map((d) =>
+          d.id === selectedId ? ({ ...d, ...patch } as Drawing) : d
+        );
+        drawingsRef.current = next;
+        saveDrawings(symbol, next);
+        return next;
+      });
+    },
+    [selectedId, symbol]
+  );
+
+  const duplicateSelected = useCallback(() => {
+    if (!selectedId) return;
+    setDrawings((cur) => {
+      const src = cur.find((d) => d.id === selectedId);
+      if (!src) return cur;
+      const copy = { ...src, id: generateId() } as Drawing;
+      const next = [...cur, copy];
+      drawingsRef.current = next;
+      saveDrawings(symbol, next);
+      setSelectedId(copy.id);
+      return next;
+    });
+  }, [selectedId, symbol]);
+
+  // ─ Keyboard: Delete removes selection, Esc cancels/deselects
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA")) return;
+      if (e.key === "Escape") {
+        setPendingPoint(null);
+        setSelectedId(null);
+        setTool("select");
+      } else if (
+        (e.key === "Delete" || e.key === "Backspace") &&
+        selectedId
+      ) {
+        const next = removeDrawing(symbol, selectedId);
+        setDrawings(next);
+        drawingsRef.current = next;
+        setSelectedId(null);
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selectedId, symbol]);
 
   const handleScreenshot = useCallback(() => {
     const chart = chartRef.current;
@@ -776,6 +944,10 @@ export function FullChart({ config }: FullChartProps) {
   }, [buildIndicators]);
 
   const activeDrawings = drawings.filter((d) => d.symbol === symbol);
+  const selectedDrawing =
+    tool === "select"
+      ? activeDrawings.find((d) => d.id === selectedId) ?? null
+      : null;
 
   return (
     <div
@@ -812,67 +984,67 @@ export function FullChart({ config }: FullChartProps) {
       </div>
 
       {/* Tool palette */}
-      <div className="absolute top-3 right-3 z-20 flex items-center gap-px bg-surface-container-low/90 backdrop-blur-sm">
+      <div className="absolute top-3 right-3 z-30 flex items-center gap-px bg-surface-container-low/90 backdrop-blur-sm">
         <PaletteBtn
           active={tool === "select"}
           onClick={() => {
             setTool("select");
             setPendingPoint(null);
+            setToolMenu(false);
           }}
-          title="Select / move"
+          title="Select / move (Esc)"
         >
           <MousePointer2 size={14} />
         </PaletteBtn>
-        <PaletteBtn
-          active={tool === "level"}
-          onClick={() => {
-            setTool(tool === "level" ? "select" : "level");
-            setPendingPoint(null);
-          }}
-          title="Horizontal level"
-        >
-          <Minus size={14} />
-        </PaletteBtn>
-        <PaletteBtn
-          active={tool === "trendline"}
-          onClick={() => {
-            setTool(tool === "trendline" ? "select" : "trendline");
-            setPendingPoint(null);
-          }}
-          title="Trend line"
-        >
-          <TrendingUp size={14} />
-        </PaletteBtn>
-        <PaletteBtn
-          active={tool === "ray"}
-          onClick={() => {
-            setTool(tool === "ray" ? "select" : "ray");
-            setPendingPoint(null);
-          }}
-          title="Ray (extended line)"
-        >
-          <Crosshair size={14} />
-        </PaletteBtn>
-        <PaletteBtn
-          active={tool === "rect"}
-          onClick={() => {
-            setTool(tool === "rect" ? "select" : "rect");
-            setPendingPoint(null);
-          }}
-          title="Rectangle / zone"
-        >
-          <Square size={14} />
-        </PaletteBtn>
-        <PaletteBtn
-          active={tool === "fib"}
-          onClick={() => {
-            setTool(tool === "fib" ? "select" : "fib");
-            setPendingPoint(null);
-          }}
-          title="Fibonacci retracement"
-        >
-          <Triangle size={14} />
-        </PaletteBtn>
+
+        {/* Grouped tools dropdown */}
+        <div className="relative">
+          <button
+            onClick={() => setToolMenu((v) => !v)}
+            className={`flex items-center gap-1 p-2 transition-colors ${
+              tool !== "select"
+                ? "bg-cyan/15 text-cyan"
+                : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container"
+            }`}
+            title="Drawing tools"
+          >
+            <TrendingUp size={14} />
+            <ChevronDown
+              size={11}
+              className={toolMenu ? "rotate-180 transition-transform" : "transition-transform"}
+            />
+          </button>
+          {toolMenu && (
+            <div className="absolute top-full right-0 mt-1 w-52 bg-surface-container-high shadow-2xl py-1">
+              {TOOL_GROUPS.map((g) => (
+                <div key={g.group}>
+                  <p className="px-3 pt-2 pb-1 text-[9px] font-bold tracking-widest uppercase text-on-surface-variant/60">
+                    {g.group}
+                  </p>
+                  {g.tools.map((t) => (
+                    <button
+                      key={t.id}
+                      onClick={() => {
+                        setTool(t.id);
+                        setPendingPoint(null);
+                        setToolMenu(false);
+                      }}
+                      className={`w-full flex items-center gap-2.5 px-3 py-1.5 text-xs transition-colors ${
+                        tool === t.id
+                          ? "bg-cyan/10 text-cyan"
+                          : "text-on-surface hover:bg-surface-container-highest"
+                      }`}
+                    >
+                      <span className="shrink-0">{t.icon}</span>
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         {activeDrawings.length > 0 && (
           <PaletteBtn
             onClick={() => setClearConfirm(true)}
@@ -893,11 +1065,122 @@ export function FullChart({ config }: FullChartProps) {
         </PaletteBtn>
       </div>
 
+      {/* Style popover — shown when a drawing is selected */}
+      {selectedDrawing && (
+        <div className="absolute top-14 right-3 z-30 w-56 bg-surface-container-high/95 backdrop-blur-sm shadow-2xl p-3 space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold tracking-widest uppercase text-on-surface-variant">
+              {drawingLabel(selectedDrawing)}
+            </span>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() =>
+                  patchSelected({ locked: !selectedDrawing.locked })
+                }
+                title={selectedDrawing.locked ? "Unlock" : "Lock"}
+                className="p-1 text-on-surface-variant hover:text-on-surface"
+              >
+                {selectedDrawing.locked ? (
+                  <Lock size={13} />
+                ) : (
+                  <LockOpen size={13} />
+                )}
+              </button>
+              <button
+                onClick={duplicateSelected}
+                title="Duplicate"
+                className="p-1 text-on-surface-variant hover:text-on-surface"
+              >
+                <Copy size={13} />
+              </button>
+              <button
+                onClick={() => handleRemoveDrawing(selectedDrawing.id)}
+                title="Delete (Del)"
+                className="p-1 text-on-surface-variant hover:text-crimson"
+              >
+                <Trash2 size={13} />
+              </button>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-1.5">
+            {DRAWING_COLORS.map((c) => (
+              <button
+                key={c}
+                onClick={() => patchSelected({ color: c })}
+                style={{ backgroundColor: c }}
+                className={`w-5 h-5 ${
+                  selectedDrawing.color === c
+                    ? "ring-2 ring-on-surface ring-offset-1 ring-offset-surface-container-high"
+                    : ""
+                }`}
+              />
+            ))}
+          </div>
+
+          <div className="flex items-center gap-1">
+            {[1, 2, 3, 4].map((w) => (
+              <button
+                key={w}
+                onClick={() => patchSelected({ lineWidth: w })}
+                className={`flex-1 py-1 text-[10px] font-bold transition-colors ${
+                  (selectedDrawing.lineWidth ?? 2) === w
+                    ? "bg-cyan/15 text-cyan"
+                    : "bg-surface-container text-on-surface-variant hover:text-on-surface"
+                }`}
+              >
+                {w}px
+              </button>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-1">
+            {LINE_STYLES.map((s) => (
+              <button
+                key={s}
+                onClick={() => patchSelected({ lineStyle: s })}
+                className={`flex-1 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors ${
+                  (selectedDrawing.lineStyle ?? "solid") === s
+                    ? "bg-cyan/15 text-cyan"
+                    : "bg-surface-container text-on-surface-variant hover:text-on-surface"
+                }`}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+
+          {selectedDrawing.type === "position" && (
+            <div className="flex items-center gap-1">
+              {(["long", "short"] as const).map((sd) => (
+                <button
+                  key={sd}
+                  onClick={() => patchSelected({ side: sd })}
+                  className={`flex-1 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors ${
+                    selectedDrawing.side === sd
+                      ? sd === "long"
+                        ? "bg-emerald/20 text-emerald"
+                        : "bg-crimson/20 text-crimson"
+                      : "bg-surface-container text-on-surface-variant hover:text-on-surface"
+                  }`}
+                >
+                  {sd}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Drawing-mode banner */}
       {tool !== "select" && (
         <div className="absolute top-12 left-1/2 -translate-x-1/2 z-20 bg-cyan/15 text-cyan text-[10px] font-bold tracking-widest uppercase px-3 py-1 pointer-events-none">
-          {tool === "level"
-            ? "Click to place a horizontal level"
+          {tool === "level" ||
+          tool === "hray" ||
+          tool === "vline" ||
+          tool === "text" ||
+          tool === "position"
+            ? "Click to place"
             : pendingPoint
             ? "Click the second point"
             : "Click the first point"}
@@ -943,15 +1226,10 @@ export function FullChart({ config }: FullChartProps) {
                   style={{ backgroundColor: d.color }}
                 />
                 <span className="flex-1 text-[10px] text-on-surface truncate">
-                  {d.type === "level"
-                    ? `${d.label} · ${d.price.toFixed(2)}`
-                    : d.type === "trendline"
-                    ? d.ray
-                      ? "Ray"
-                      : "Trend line"
-                    : d.type === "rect"
-                    ? "Rectangle"
-                    : "Fibonacci"}
+                  {drawingLabel(d)}
+                  {d.locked && (
+                    <Lock size={9} className="inline ml-1 -mt-0.5" />
+                  )}
                 </span>
                 <button
                   onClick={(e) => {

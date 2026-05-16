@@ -981,11 +981,12 @@ function DrawingList({
                 <span className="text-[10px] text-on-surface truncate">
                   {d.type === "level"
                     ? `${d.label} · $${d.price.toLocaleString(undefined, { maximumFractionDigits: 2 })}`
-                    : `Trend · ${(
-                        (d.p2.price - d.p1.price) /
-                        d.p1.price *
-                        100
-                      ).toFixed(2)}%`}
+                    : d.type === "trendline"
+                      ? `Trend · ${(
+                          ((d.p2.price - d.p1.price) / d.p1.price) *
+                          100
+                        ).toFixed(2)}%`
+                      : d.type}
                 </span>
               </div>
               <button

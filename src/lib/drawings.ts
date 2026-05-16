@@ -1,56 +1,116 @@
-// Drawings store — persists horizontal levels and trend lines per symbol
-// in localStorage. No backend round-trip; drawings are intentionally a
-// per-device / per-user-session thing.
-
-export interface HorizontalLevel {
-  id: string;
-  type: "level";
-  symbol: string;
-  price: number;
-  label: string;
-  color: string;
-}
+// Drawings store — persists every drawing-tool object per symbol in
+// localStorage. No backend round-trip; drawings are intentionally a
+// per-device thing. The model is shared by the canvas primitive
+// (rendering + hit-testing) and the FullChart interaction controller.
 
 export interface Point {
   time: number;
   price: number;
 }
 
-export interface TrendLine {
+export type LineStyle = "solid" | "dashed" | "dotted";
+
+// Visual style shared by every drawing. All optional so older saved
+// payloads keep working — the primitive falls back to sane defaults.
+interface Styled {
+  color: string;
+  lineWidth?: number;
+  lineStyle?: LineStyle;
+  locked?: boolean;
+}
+
+export interface HorizontalLevel extends Styled {
+  id: string;
+  type: "level";
+  symbol: string;
+  price: number;
+  label: string;
+}
+
+// Horizontal ray: constant price starting at p1.time, extending right.
+export interface HorizontalRay extends Styled {
+  id: string;
+  type: "hray";
+  symbol: string;
+  p1: Point;
+}
+
+export interface VerticalLine extends Styled {
+  id: string;
+  type: "vline";
+  symbol: string;
+  time: number;
+}
+
+export interface TrendLine extends Styled {
   id: string;
   type: "trendline";
   symbol: string;
   p1: Point;
   p2: Point;
-  color: string;
-  // When true the segment is extended forward past p2 (a ray).
-  ray?: boolean;
+  // none = segment, right = ray, both = extended line
+  extend?: "none" | "right" | "both";
+  arrow?: boolean;
+  ray?: boolean; // legacy — treated as extend:"right"
 }
 
-export interface RectZone {
+export interface RectZone extends Styled {
   id: string;
   type: "rect";
   symbol: string;
   p1: Point;
   p2: Point;
-  color: string;
 }
 
-export interface FibRetracement {
+export interface FibRetracement extends Styled {
   id: string;
   type: "fib";
   symbol: string;
-  // p1 = swing start (level 0), p2 = swing end (level 1)
   p1: Point;
   p2: Point;
-  color: string;
+}
+
+export interface TextNote extends Styled {
+  id: string;
+  type: "text";
+  symbol: string;
+  p1: Point;
+  text: string;
+}
+
+// Measure: shows Δprice, Δ%, bar count between p1 and p2.
+export interface MeasureTool extends Styled {
+  id: string;
+  type: "measure";
+  symbol: string;
+  p1: Point;
+  p2: Point;
+}
+
+// Long/Short position tool — TradingView-style risk/reward box.
+export interface PositionTool extends Styled {
+  id: string;
+  type: "position";
+  symbol: string;
+  side: "long" | "short";
+  time: number; // left anchor
+  entry: number;
+  target: number;
+  stop: number;
 }
 
 export type Drawing =
   | HorizontalLevel
+  | HorizontalRay
+  | VerticalLine
   | TrendLine
   | RectZone
-  | FibRetracement;
+  | FibRetracement
+  | TextNote
+  | MeasureTool
+  | PositionTool;
+
+export type DrawingType = Drawing["type"];
 
 // Fibonacci retracement levels rendered between p1 and p2.
 export const FIB_LEVELS = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1] as const;
@@ -119,4 +179,34 @@ export const DRAWING_COLORS = [
 
 export function pickColor(existingCount: number): string {
   return DRAWING_COLORS[existingCount % DRAWING_COLORS.length];
+}
+
+// Human label for the drawings list / UI.
+export function drawingLabel(d: Drawing): string {
+  switch (d.type) {
+    case "level":
+      return `${d.label} · ${d.price.toFixed(2)}`;
+    case "hray":
+      return `Ray · ${d.p1.price.toFixed(2)}`;
+    case "vline":
+      return "Vertical line";
+    case "trendline":
+      return d.arrow
+        ? "Arrow"
+        : d.extend === "both"
+        ? "Extended line"
+        : d.extend === "right" || d.ray
+        ? "Ray line"
+        : "Trend line";
+    case "rect":
+      return "Rectangle";
+    case "fib":
+      return "Fibonacci";
+    case "text":
+      return d.text ? `“${d.text.slice(0, 16)}”` : "Text";
+    case "measure":
+      return "Measure";
+    case "position":
+      return d.side === "long" ? "Long position" : "Short position";
+  }
 }
