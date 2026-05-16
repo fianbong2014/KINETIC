@@ -71,7 +71,7 @@ export function NewEntryDialog({ onSubmit }: NewEntryDialogProps) {
     <>
       <button
         onClick={() => setOpen(true)}
-        className="flex items-center gap-1.5 bg-primary text-[#004343] text-[10px] font-bold tracking-wider uppercase px-3 py-1.5 hover:opacity-90 transition-opacity"
+        className="flex items-center gap-1.5 bg-primary text-primary-foreground text-[10px] font-bold tracking-wider uppercase px-3 py-1.5 hover:opacity-90 transition-opacity"
       >
         <Plus className="w-3 h-3" />
         New Entry
@@ -124,7 +124,7 @@ export function NewEntryDialog({ onSubmit }: NewEntryDialogProps) {
                       onClick={() => setSide("LONG")}
                       className={`flex-1 py-2 text-[10px] font-bold uppercase tracking-wider transition-colors ${
                         side === "LONG"
-                          ? "bg-primary text-[#004343]"
+                          ? "bg-primary text-primary-foreground"
                           : "bg-surface-container-lowest text-on-surface-variant"
                       }`}
                     >
@@ -212,7 +212,7 @@ export function NewEntryDialog({ onSubmit }: NewEntryDialogProps) {
                 <button
                   type="submit"
                   disabled={saving}
-                  className="flex-1 bg-primary text-[#004343] font-heading font-bold text-xs uppercase tracking-wider py-3 hover:opacity-90 transition-opacity disabled:opacity-50"
+                  className="flex-1 bg-primary text-primary-foreground font-heading font-bold text-xs uppercase tracking-wider py-3 hover:opacity-90 transition-opacity disabled:opacity-50"
                 >
                   {saving ? "Saving..." : "Save Entry"}
                 </button>

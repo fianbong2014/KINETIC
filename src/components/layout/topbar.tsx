@@ -27,11 +27,11 @@ export function Topbar() {
 
   return (
     <>
-      <header className="px-4 lg:px-6 py-3 lg:py-4 bg-[#0e0e0f] flex items-center justify-between gap-3">
+      <header className="px-4 lg:px-6 py-3 lg:py-4 bg-background flex items-center justify-between gap-3">
         {/* Left: Branding + Nav */}
         <div className="flex items-center gap-4 lg:gap-8 min-w-0">
           <Link href="/dashboard" className="shrink-0">
-            <span className="text-xl lg:text-2xl font-black tracking-tighter text-[#00ffff] font-heading">
+            <span className="text-xl lg:text-2xl font-black tracking-tighter text-cyan font-heading">
               KINETIC
             </span>
           </Link>
@@ -48,8 +48,8 @@ export function Topbar() {
                   href={link.href}
                   className={`text-sm uppercase font-bold font-heading pb-4 transition-colors ${
                     isActive
-                      ? "text-[#ffffff] border-b-2 border-[#00ffff]"
-                      : "text-[#adaaab] hover:text-[#ffffff]"
+                      ? "text-on-surface border-b-2 border-cyan"
+                      : "text-on-surface-variant hover:text-on-surface"
                   }`}
                 >
                   {link.label}
@@ -115,7 +115,7 @@ export function Topbar() {
       </header>
 
       {/* Separation line */}
-      <div className="bg-[#131314] h-[1px] w-full" />
+      <div className="bg-surface-container-low h-[1px] w-full" />
     </>
   );
 }

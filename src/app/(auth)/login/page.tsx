@@ -54,7 +54,7 @@ function LoginForm() {
       {/* Logo */}
       <div className="flex flex-col items-center mb-8">
         <div className="w-12 h-12 bg-primary flex items-center justify-center mb-3">
-          <Zap className="w-6 h-6 text-[#004343]" />
+          <Zap className="w-6 h-6 text-primary-foreground" />
         </div>
         <h1 className="text-2xl font-black font-heading tracking-tighter uppercase text-on-surface">
           Kinetic
@@ -103,7 +103,7 @@ function LoginForm() {
         <button
           type="submit"
           disabled={loading}
-          className="bg-primary text-[#004343] font-heading font-bold text-sm uppercase tracking-wider py-3 hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2 mt-2"
+          className="bg-primary text-primary-foreground font-heading font-bold text-sm uppercase tracking-wider py-3 hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2 mt-2"
         >
           <LogIn className="w-4 h-4" />
           {loading ? "Signing in..." : "Sign In"}

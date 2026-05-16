@@ -51,7 +51,7 @@ export default function RootLayout({
       lang="en"
       className={`${inter.variable} ${spaceGrotesk.variable} ${robotoMono.variable} h-full antialiased`}
     >
-      <body className="min-h-screen bg-[#0e0e0f] text-white">
+      <body className="min-h-screen bg-background text-foreground">
         <SessionProvider>
           <ToastProvider>{children}</ToastProvider>
         </SessionProvider>

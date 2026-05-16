@@ -48,7 +48,7 @@ export function DailyBriefingModal({
         <div className="bg-gradient-to-br from-surface-container-high to-surface-container-low p-5 border-b border-outline-variant/10 flex items-start justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-primary flex items-center justify-center shrink-0">
-              <Sunrise className="w-5 h-5 text-[#004343]" />
+              <Sunrise className="w-5 h-5 text-primary-foreground" />
             </div>
             <div>
               <h2 className="text-lg font-black font-heading tracking-tighter uppercase text-on-surface">
@@ -190,7 +190,7 @@ export function DailyBriefingModal({
                 </span>
                 <button
                   onClick={onClose}
-                  className="bg-primary text-[#004343] font-heading font-bold px-4 py-2 hover:opacity-90 transition-opacity"
+                  className="bg-primary text-primary-foreground font-heading font-bold px-4 py-2 hover:opacity-90 transition-opacity"
                 >
                   Start Trading
                 </button>

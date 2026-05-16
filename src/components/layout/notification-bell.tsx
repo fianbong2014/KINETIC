@@ -23,13 +23,13 @@ export function NotificationBell() {
             ? `Notifications, ${unreadCount} unread`
             : "Notifications"
         }
-        className="relative text-[#adaaab] hover:text-[#ffffff] transition-colors shrink-0"
+        className="relative text-on-surface-variant hover:text-on-surface transition-colors shrink-0"
       >
         <Bell className="w-5 h-5" />
         {unreadCount > 0 && (
           <span
             aria-hidden
-            className="absolute -top-1 -right-1 min-w-[14px] h-[14px] px-1 bg-cyan text-[#004343] text-[9px] font-black tabular-nums flex items-center justify-center leading-none"
+            className="absolute -top-1 -right-1 min-w-[14px] h-[14px] px-1 bg-cyan text-primary-foreground text-[9px] font-black tabular-nums flex items-center justify-center leading-none"
           >
             {unreadCount > 99 ? "99+" : unreadCount}
           </span>

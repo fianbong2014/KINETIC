@@ -30,7 +30,7 @@ export default function BotsPage() {
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 bg-cyan flex items-center justify-center">
-              <Bot className="w-6 h-6 text-[#004343]" />
+              <Bot className="w-6 h-6 text-primary-foreground" />
             </div>
             <div>
               <h1 className="text-2xl lg:text-3xl font-black font-heading uppercase tracking-tighter text-on-surface">
@@ -44,7 +44,7 @@ export default function BotsPage() {
 
           <button
             onClick={() => setCreating(true)}
-            className="flex items-center gap-2 bg-cyan text-[#004343] font-heading font-bold text-xs uppercase tracking-wider px-4 py-2.5 hover:opacity-90 transition-opacity self-start"
+            className="flex items-center gap-2 bg-cyan text-primary-foreground font-heading font-bold text-xs uppercase tracking-wider px-4 py-2.5 hover:opacity-90 transition-opacity self-start"
           >
             <Plus className="w-4 h-4" />
             New Bot
@@ -152,7 +152,7 @@ export default function BotsPage() {
           </div>
           <button
             onClick={() => setCreating(true)}
-            className="flex items-center gap-2 bg-cyan text-[#004343] font-heading font-bold text-xs uppercase tracking-wider px-5 py-3 hover:opacity-90 transition-opacity"
+            className="flex items-center gap-2 bg-cyan text-primary-foreground font-heading font-bold text-xs uppercase tracking-wider px-5 py-3 hover:opacity-90 transition-opacity"
           >
             <Plus className="w-4 h-4" />
             Create First Bot

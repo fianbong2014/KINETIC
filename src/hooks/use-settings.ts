@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import type { ThemeSettings } from "@/lib/theme-tokens";
 
 export interface Settings {
+  theme?: ThemeSettings;
   trading?: {
     defaultOrderType?: string;
     defaultLeverage?: string;

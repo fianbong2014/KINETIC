@@ -85,7 +85,7 @@ export default function Home() {
       {/* Logo + Title */}
       <div className="flex flex-col items-center mb-10">
         <div className="w-14 h-14 bg-primary flex items-center justify-center mb-4">
-          <Zap className="w-7 h-7 text-[#004343]" />
+          <Zap className="w-7 h-7 text-primary-foreground" />
         </div>
         <h1 className="text-3xl sm:text-4xl font-black font-heading tracking-tighter uppercase text-on-surface">
           Kinetic

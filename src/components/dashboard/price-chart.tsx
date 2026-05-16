@@ -28,6 +28,7 @@ import {
   compileExpression,
   candlesToContext,
 } from "@/lib/custom-indicators";
+import { getChartTheme, CHART_THEME_EVENT } from "@/lib/chart-theme";
 
 interface CandleData {
   time: number;
@@ -181,34 +182,36 @@ export function PriceChart() {
 
       chartContainerRef.current.innerHTML = "";
 
+      const t = getChartTheme();
+
       const chart = createChart(chartContainerRef.current, {
         layout: {
-          background: { type: ColorType.Solid, color: "#0e0e0f" },
-          textColor: "#adaaab",
-          fontFamily: "'Inter', sans-serif",
+          background: { type: ColorType.Solid, color: t.background },
+          textColor: t.text,
+          fontFamily: t.fontFamily,
           fontSize: 10,
         },
         grid: {
-          vertLines: { color: "rgba(72,72,73,0.12)" },
-          horzLines: { color: "rgba(72,72,73,0.12)" },
+          vertLines: { color: t.grid },
+          horzLines: { color: t.grid },
         },
         crosshair: {
           mode: CrosshairMode.Normal,
           vertLine: {
-            color: "rgba(0,255,255,0.3)",
-            labelBackgroundColor: "#00ffff",
+            color: t.accent,
+            labelBackgroundColor: t.accent,
           },
           horzLine: {
-            color: "rgba(0,255,255,0.3)",
-            labelBackgroundColor: "#00ffff",
+            color: t.accent,
+            labelBackgroundColor: t.accent,
           },
         },
         rightPriceScale: {
-          borderColor: "rgba(72,72,73,0.15)",
+          borderColor: t.border,
           scaleMargins: { top: 0.1, bottom: 0.2 },
         },
         timeScale: {
-          borderColor: "rgba(72,72,73,0.15)",
+          borderColor: t.border,
           timeVisible: true,
           secondsVisible: false,
         },
@@ -217,12 +220,12 @@ export function PriceChart() {
       });
 
       const candleSeries = chart.addSeries(CandlestickSeries, {
-        upColor: "#00ffff",
-        downColor: "#ff734c",
-        borderUpColor: "#00ffff",
-        borderDownColor: "#ff734c",
-        wickUpColor: "#00ffff",
-        wickDownColor: "#ff734c",
+        upColor: t.up,
+        downColor: t.down,
+        borderUpColor: t.up,
+        borderDownColor: t.down,
+        wickUpColor: t.up,
+        wickDownColor: t.down,
       });
 
       const volumeSeries = chart.addSeries(HistogramSeries, {
@@ -269,6 +272,42 @@ export function PriceChart() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadData]);
+
+  // Re-skin the canvas chart when the theme / light mode changes.
+  useEffect(() => {
+    function reskin() {
+      const chart = chartRef.current;
+      if (!chart) return;
+      const t = getChartTheme();
+      chart.applyOptions({
+        layout: {
+          background: { color: t.background },
+          textColor: t.text,
+          fontFamily: t.fontFamily,
+        },
+        grid: {
+          vertLines: { color: t.grid },
+          horzLines: { color: t.grid },
+        },
+        crosshair: {
+          vertLine: { color: t.accent, labelBackgroundColor: t.accent },
+          horzLine: { color: t.accent, labelBackgroundColor: t.accent },
+        },
+        rightPriceScale: { borderColor: t.border },
+        timeScale: { borderColor: t.border },
+      });
+      candleSeriesRef.current?.applyOptions({
+        upColor: t.up,
+        downColor: t.down,
+        borderUpColor: t.up,
+        borderDownColor: t.down,
+        wickUpColor: t.up,
+        wickDownColor: t.down,
+      });
+    }
+    window.addEventListener(CHART_THEME_EVENT, reskin);
+    return () => window.removeEventListener(CHART_THEME_EVENT, reskin);
+  }, []);
 
   // Sync custom indicators — create LineSeries for each enabled overlay
   // indicator and recompute values whenever candles or indicator list change.

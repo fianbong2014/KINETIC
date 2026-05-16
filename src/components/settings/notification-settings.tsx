@@ -95,7 +95,7 @@ export function NotificationSettings() {
               {permission !== "granted" && permission !== "denied" && (
                 <button
                   onClick={handleRequestPermission}
-                  className="shrink-0 bg-primary text-[#004343] font-bold text-[10px] uppercase tracking-wider px-3 py-2 hover:opacity-90 transition-opacity"
+                  className="shrink-0 bg-primary text-primary-foreground font-bold text-[10px] uppercase tracking-wider px-3 py-2 hover:opacity-90 transition-opacity"
                 >
                   Enable
                 </button>

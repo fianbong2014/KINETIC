@@ -132,7 +132,7 @@ export function CreateBotDialog({ initial, onClose }: CreateBotDialogProps) {
         <div className="flex items-center justify-between p-5 border-b border-outline-variant/10">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-cyan flex items-center justify-center">
-              <Bot className="w-5 h-5 text-[#004343]" />
+              <Bot className="w-5 h-5 text-primary-foreground" />
             </div>
             <div>
               <h3 className="text-sm font-black font-heading tracking-wider uppercase text-on-surface">
@@ -221,7 +221,7 @@ export function CreateBotDialog({ initial, onClose }: CreateBotDialogProps) {
                     onClick={() => setTfFilter(tf)}
                     className={`flex-1 py-2 text-[10px] font-bold tracking-widest uppercase transition-colors ${
                       tfFilter === tf
-                        ? "bg-cyan text-[#004343]"
+                        ? "bg-cyan text-primary-foreground"
                         : "bg-surface-container-lowest text-on-surface-variant hover:bg-surface-container-high"
                     }`}
                   >
@@ -397,7 +397,7 @@ export function CreateBotDialog({ initial, onClose }: CreateBotDialogProps) {
             <button
               type="submit"
               disabled={submitting}
-              className="flex-1 bg-cyan text-[#004343] font-heading font-bold text-xs uppercase tracking-wider py-3 hover:opacity-90 transition-opacity disabled:opacity-50"
+              className="flex-1 bg-cyan text-primary-foreground font-heading font-bold text-xs uppercase tracking-wider py-3 hover:opacity-90 transition-opacity disabled:opacity-50"
             >
               {submitting
                 ? "Saving..."

@@ -67,7 +67,7 @@ export function AlertCenter() {
           </div>
           <button
             onClick={() => setDialogOpen(true)}
-            className="flex items-center gap-1.5 bg-cyan text-[#004343] text-[10px] font-bold tracking-widest uppercase px-3 py-1.5 hover:opacity-90 transition-opacity"
+            className="flex items-center gap-1.5 bg-cyan text-primary-foreground text-[10px] font-bold tracking-widest uppercase px-3 py-1.5 hover:opacity-90 transition-opacity"
           >
             <Plus className="w-3 h-3" />
             New Alert

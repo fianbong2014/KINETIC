@@ -117,7 +117,7 @@ export function PartialCloseDialog({
                   onClick={() => setPct(p)}
                   className={`py-2.5 text-xs font-bold tracking-widest transition-colors ${
                     pct === p
-                      ? "bg-primary text-[#004343]"
+                      ? "bg-primary text-primary-foreground"
                       : "bg-surface-container-lowest text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high"
                   }`}
                 >

@@ -291,7 +291,7 @@ function IndicatorForm({
         <button
           type="submit"
           disabled={submitting}
-          className="bg-cyan text-[#004343] font-bold text-[10px] uppercase tracking-wider px-3 py-2 hover:opacity-90 transition-opacity disabled:opacity-50"
+          className="bg-cyan text-primary-foreground font-bold text-[10px] uppercase tracking-wider px-3 py-2 hover:opacity-90 transition-opacity disabled:opacity-50"
         >
           {submitting ? "Saving…" : "Save"}
         </button>

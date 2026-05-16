@@ -36,7 +36,7 @@ export default function AppError({
 
       <button
         onClick={reset}
-        className="self-start flex items-center gap-2 bg-primary text-[#004343] font-heading font-bold text-xs uppercase tracking-wider px-4 py-2 hover:opacity-90 transition-opacity"
+        className="self-start flex items-center gap-2 bg-primary text-primary-foreground font-heading font-bold text-xs uppercase tracking-wider px-4 py-2 hover:opacity-90 transition-opacity"
       >
         <RefreshCw className="w-3.5 h-3.5" />
         Retry

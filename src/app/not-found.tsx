@@ -3,10 +3,10 @@ import { Home, Zap } from "lucide-react";
 
 export default function NotFound() {
   return (
-    <div className="min-h-screen flex items-center justify-center p-6 bg-[#0e0e0f]">
+    <div className="min-h-screen flex items-center justify-center p-6 bg-background">
       <div className="max-w-md w-full flex flex-col items-center text-center gap-6">
         <div className="w-14 h-14 bg-primary flex items-center justify-center">
-          <Zap className="w-7 h-7 text-[#004343]" />
+          <Zap className="w-7 h-7 text-primary-foreground" />
         </div>
 
         <div>
@@ -24,7 +24,7 @@ export default function NotFound() {
 
         <Link
           href="/dashboard"
-          className="flex items-center gap-2 bg-primary text-[#004343] font-heading font-bold text-sm uppercase tracking-wider px-6 py-3 hover:opacity-90 transition-opacity"
+          className="flex items-center gap-2 bg-primary text-primary-foreground font-heading font-bold text-sm uppercase tracking-wider px-6 py-3 hover:opacity-90 transition-opacity"
         >
           <Home className="w-4 h-4" />
           Return Home

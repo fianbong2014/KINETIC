@@ -17,7 +17,7 @@ export default function GlobalError({
   }, [error]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-6 bg-[#0e0e0f]">
+    <div className="min-h-screen flex items-center justify-center p-6 bg-background">
       <div className="max-w-md w-full bg-surface-container-low border-l-2 border-crimson p-6 flex flex-col gap-4">
         <div className="flex items-center gap-3">
           <AlertTriangle className="w-5 h-5 text-crimson shrink-0" />
@@ -39,7 +39,7 @@ export default function GlobalError({
         <div className="flex gap-2 mt-2">
           <button
             onClick={reset}
-            className="flex-1 flex items-center justify-center gap-2 bg-primary text-[#004343] font-heading font-bold text-xs uppercase tracking-wider py-3 hover:opacity-90 transition-opacity"
+            className="flex-1 flex items-center justify-center gap-2 bg-primary text-primary-foreground font-heading font-bold text-xs uppercase tracking-wider py-3 hover:opacity-90 transition-opacity"
           >
             <RefreshCw className="w-3.5 h-3.5" />
             Retry

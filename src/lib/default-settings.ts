@@ -1,5 +1,8 @@
+import { DEFAULT_THEME } from "./theme-tokens";
+
 export function defaultSettings() {
   return {
+    theme: structuredClone(DEFAULT_THEME),
     trading: {
       defaultOrderType: "Market",
       defaultLeverage: "3x",

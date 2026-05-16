@@ -5,6 +5,7 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { StatusBar } from "@/components/layout/status-bar";
+import { ThemeToolbar } from "@/components/theme/theme-toolbar";
 
 export default function AppLayout({
   children,
@@ -38,6 +39,9 @@ export default function AppLayout({
             {/* Mobile bottom nav */}
             <MobileNav />
           </div>
+
+          {/* Floating theme customizer — live across the whole app */}
+          <ThemeToolbar />
         </BotEngineProvider>
       </PriceProvider>
     </TooltipProvider>

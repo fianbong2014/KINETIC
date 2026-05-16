@@ -239,7 +239,7 @@ export function CreateAlertDialog({
             <button
               type="submit"
               disabled={submitting || !validPrice}
-              className="flex-1 bg-cyan text-[#004343] font-heading font-bold text-xs uppercase tracking-wider py-3 hover:opacity-90 transition-opacity disabled:opacity-50"
+              className="flex-1 bg-cyan text-primary-foreground font-heading font-bold text-xs uppercase tracking-wider py-3 hover:opacity-90 transition-opacity disabled:opacity-50"
             >
               {submitting ? "Creating..." : "Create Alert"}
             </button>
