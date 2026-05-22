@@ -34,7 +34,7 @@ import {
 } from "@/lib/drawings";
 
 export const HANDLE_SIZE = 9;
-const HIT_TOL = 6;
+const DEFAULT_HIT_TOL = 6;
 
 export interface DrawingHandle {
   drawingId: string;
@@ -154,9 +154,16 @@ export class DrawingsPrimitive {
   private getState: () => PrimitiveState;
   private paneWidth = 0;
   private paneHeight = 0;
+  public handleSize: number;
+  public hitTol: number;
 
-  constructor(getState: () => PrimitiveState) {
+  constructor(
+    getState: () => PrimitiveState,
+    opts: { handleSize?: number; hitTol?: number } = {}
+  ) {
     this.getState = getState;
+    this.handleSize = opts.handleSize ?? HANDLE_SIZE;
+    this.hitTol = opts.hitTol ?? DEFAULT_HIT_TOL;
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -291,7 +298,10 @@ export class DrawingsPrimitive {
 
   handleAt(x: number, y: number): DrawingHandle | null {
     for (const h of this.handles()) {
-      if (Math.abs(h.x - x) <= HANDLE_SIZE && Math.abs(h.y - y) <= HANDLE_SIZE)
+      if (
+        Math.abs(h.x - x) <= this.handleSize &&
+        Math.abs(h.y - y) <= this.handleSize
+      )
         return h;
     }
     return null;
@@ -311,21 +321,21 @@ export class DrawingsPrimitive {
     switch (d.type) {
       case "level": {
         const ly = this.yOf(d.price);
-        return ly != null && Math.abs(ly - y) <= HIT_TOL;
+        return ly != null && Math.abs(ly - y) <= this.hitTol;
       }
       case "hray": {
         const s = this.screen(d.p1);
-        return !!s && x >= s.x - HIT_TOL && Math.abs(s.y - y) <= HIT_TOL;
+        return !!s && x >= s.x - this.hitTol && Math.abs(s.y - y) <= this.hitTol;
       }
       case "vline": {
         const vx = this.xOf(d.time);
-        return vx != null && Math.abs(vx - x) <= HIT_TOL;
+        return vx != null && Math.abs(vx - x) <= this.hitTol;
       }
       case "text": {
         const s = this.screen(d.p1);
         if (!s) return false;
         return (
-          x >= s.x - HIT_TOL &&
+          x >= s.x - this.hitTol &&
           x <= s.x + 140 &&
           y >= s.y - 16 &&
           y <= s.y + 6
@@ -336,7 +346,7 @@ export class DrawingsPrimitive {
         const s2 = this.screen(d.p2);
         if (!s1 || !s2) return false;
         const [a, b] = this.trendEnds(d, s1, s2);
-        return this.pointNearSegment(x, y, a, b) <= HIT_TOL;
+        return this.pointNearSegment(x, y, a, b) <= this.hitTol;
       }
       case "rect": {
         const s1 = this.screen(d.p1);
@@ -347,10 +357,10 @@ export class DrawingsPrimitive {
         const minY = Math.min(s1.y, s2.y);
         const maxY = Math.max(s1.y, s2.y);
         return (
-          x >= minX - HIT_TOL &&
-          x <= maxX + HIT_TOL &&
-          y >= minY - HIT_TOL &&
-          y <= maxY + HIT_TOL
+          x >= minX - this.hitTol &&
+          x <= maxX + this.hitTol &&
+          y >= minY - this.hitTol &&
+          y <= maxY + this.hitTol
         );
       }
       case "fib":
@@ -360,20 +370,20 @@ export class DrawingsPrimitive {
         if (!s1 || !s2) return false;
         const minX = Math.min(s1.x, s2.x);
         const maxX = Math.max(s1.x, s2.x);
-        if (x < minX - HIT_TOL || x > maxX + HIT_TOL) return false;
+        if (x < minX - this.hitTol || x > maxX + this.hitTol) return false;
         const minY = Math.min(s1.y, s2.y);
         const maxY = Math.max(s1.y, s2.y);
-        return y >= minY - HIT_TOL && y <= maxY + HIT_TOL;
+        return y >= minY - this.hitTol && y <= maxY + this.hitTol;
       }
       case "position": {
         const ax = this.xOf(d.time);
         if (ax == null) return false;
-        if (x < ax - HIT_TOL) return false;
+        if (x < ax - this.hitTol) return false;
         const ys = [d.entry, d.target, d.stop]
           .map((p) => this.yOf(p))
           .filter((v): v is number => v != null);
         if (ys.length === 0) return false;
-        return y >= Math.min(...ys) - HIT_TOL && y <= Math.max(...ys) + HIT_TOL;
+        return y >= Math.min(...ys) - this.hitTol && y <= Math.max(...ys) + this.hitTol;
       }
       case "ellipse": {
         const s1 = this.screen(d.p1);
@@ -392,7 +402,7 @@ export class DrawingsPrimitive {
         if (!s1 || !s2) return false;
         for (const r of FIB_FAN_LEVELS) {
           const end = { x: s2.x, y: s1.y + (s2.y - s1.y) * r };
-          if (this.pointNearSegment(x, y, s1, end) <= HIT_TOL) return true;
+          if (this.pointNearSegment(x, y, s1, end) <= this.hitTol) return true;
         }
         return false;
       }
@@ -400,27 +410,27 @@ export class DrawingsPrimitive {
         const g = this.channelGeom(d);
         if (!g) return false;
         return (
-          this.pointNearSegment(x, y, g.a1, g.a2) <= HIT_TOL ||
-          this.pointNearSegment(x, y, g.b1, g.b2) <= HIT_TOL
+          this.pointNearSegment(x, y, g.a1, g.a2) <= this.hitTol ||
+          this.pointNearSegment(x, y, g.b1, g.b2) <= this.hitTol
         );
       }
       case "pitchfork": {
         const g = this.forkGeom(d);
         if (!g) return false;
         return (
-          this.pointNearSegment(x, y, g.med0, g.med1) <= HIT_TOL ||
-          this.pointNearSegment(x, y, g.up0, g.up1) <= HIT_TOL ||
-          this.pointNearSegment(x, y, g.lo0, g.lo1) <= HIT_TOL
+          this.pointNearSegment(x, y, g.med0, g.med1) <= this.hitTol ||
+          this.pointNearSegment(x, y, g.up0, g.up1) <= this.hitTol ||
+          this.pointNearSegment(x, y, g.lo0, g.lo1) <= this.hitTol
         );
       }
       case "fibext": {
         const s3 = this.screen(d.p3);
         if (!s3) return false;
-        if (x < s3.x - HIT_TOL) return false;
+        if (x < s3.x - this.hitTol) return false;
         for (const r of FIB_EXT_LEVELS) {
           const price = d.p3.price + (d.p2.price - d.p1.price) * r;
           const ly = this.yOf(price);
-          if (ly != null && Math.abs(ly - y) <= HIT_TOL) return true;
+          if (ly != null && Math.abs(ly - y) <= this.hitTol) return true;
         }
         return false;
       }
@@ -571,7 +581,7 @@ export class DrawingsPrimitive {
   }
 
   private drawHandle(ctx: CanvasRenderingContext2D, x: number, y: number) {
-    const s = HANDLE_SIZE;
+    const s = this.handleSize;
     ctx.save();
     ctx.setLineDash([]);
     ctx.fillStyle = "#0e0e0f";

@@ -297,6 +297,240 @@ export function supertrend(
   return { line, direction };
 }
 
+// ─── Donchian Channel ─────────────────────────────────────────────────
+
+export interface DonchianValues {
+  upper: (number | null)[];
+  lower: (number | null)[];
+  middle: (number | null)[];
+}
+
+/**
+ * Donchian channel: highest high / lowest low over `period`, with the
+ * midline being the average.
+ */
+export function donchian(
+  highs: number[],
+  lows: number[],
+  period = 20
+): DonchianValues {
+  const n = highs.length;
+  const upper: (number | null)[] = Array(n).fill(null);
+  const lower: (number | null)[] = Array(n).fill(null);
+  const middle: (number | null)[] = Array(n).fill(null);
+  for (let i = period - 1; i < n; i++) {
+    let hh = -Infinity;
+    let ll = Infinity;
+    for (let j = i - period + 1; j <= i; j++) {
+      if (highs[j] > hh) hh = highs[j];
+      if (lows[j] < ll) ll = lows[j];
+    }
+    upper[i] = hh;
+    lower[i] = ll;
+    middle[i] = (hh + ll) / 2;
+  }
+  return { upper, lower, middle };
+}
+
+// ─── Keltner Channel ──────────────────────────────────────────────────
+
+export interface KeltnerValues {
+  upper: (number | null)[];
+  lower: (number | null)[];
+  middle: (number | null)[];
+}
+
+/**
+ * Keltner channel: EMA middle ± multiplier × ATR.
+ */
+export function keltner(
+  highs: number[],
+  lows: number[],
+  closes: number[],
+  emaPeriod = 20,
+  atrPeriod = 10,
+  multiplier = 2
+): KeltnerValues {
+  const mid = ema(closes, emaPeriod);
+  const a = atr(highs, lows, closes, atrPeriod);
+  const n = closes.length;
+  const upper: (number | null)[] = Array(n).fill(null);
+  const lower: (number | null)[] = Array(n).fill(null);
+  for (let i = 0; i < n; i++) {
+    const m = mid[i];
+    const aa = a[i];
+    if (m === null || aa === null) continue;
+    upper[i] = m + multiplier * aa;
+    lower[i] = m - multiplier * aa;
+  }
+  return { upper, lower, middle: mid };
+}
+
+// ─── Parabolic SAR ────────────────────────────────────────────────────
+
+export interface SarPoint {
+  index: number;
+  price: number;
+  trend: 1 | -1; // 1 = SAR below price (uptrend), -1 = above (downtrend)
+}
+
+/**
+ * Wilder's Parabolic SAR. Returns one dot per candle plus a `trend`
+ * sign indicating whether the dot is below (uptrend) or above
+ * (downtrend) the price.
+ */
+export function parabolicSar(
+  highs: number[],
+  lows: number[],
+  step = 0.02,
+  max = 0.2
+): SarPoint[] {
+  const n = highs.length;
+  if (n < 2) return [];
+  const out: SarPoint[] = [];
+
+  // Seed: assume initial uptrend if first move is up, else downtrend.
+  let trend: 1 | -1 = highs[1] >= highs[0] ? 1 : -1;
+  let af = step;
+  let sar = trend === 1 ? lows[0] : highs[0];
+  let ep = trend === 1 ? highs[0] : lows[0];
+  out.push({ index: 0, price: sar, trend });
+
+  for (let i = 1; i < n; i++) {
+    sar = sar + af * (ep - sar);
+
+    if (trend === 1) {
+      // Clamp SAR to not exceed the prior two lows.
+      sar = Math.min(sar, lows[i - 1], i >= 2 ? lows[i - 2] : sar);
+      if (lows[i] < sar) {
+        // Trend flip down
+        trend = -1;
+        sar = ep;
+        ep = lows[i];
+        af = step;
+      } else {
+        if (highs[i] > ep) {
+          ep = highs[i];
+          af = Math.min(af + step, max);
+        }
+      }
+    } else {
+      sar = Math.max(sar, highs[i - 1], i >= 2 ? highs[i - 2] : sar);
+      if (highs[i] > sar) {
+        trend = 1;
+        sar = ep;
+        ep = highs[i];
+        af = step;
+      } else {
+        if (lows[i] < ep) {
+          ep = lows[i];
+          af = Math.min(af + step, max);
+        }
+      }
+    }
+    out.push({ index: i, price: sar, trend });
+  }
+  return out;
+}
+
+// ─── Classic Pivot Points ─────────────────────────────────────────────
+
+export interface PivotLevels {
+  pp: number;
+  r1: number;
+  r2: number;
+  r3: number;
+  s1: number;
+  s2: number;
+  s3: number;
+}
+
+/**
+ * Computes classic pivot points from a prior period's H/L/C
+ * (typically the previous day for intraday charts).
+ */
+export function pivotPoints(
+  prevHigh: number,
+  prevLow: number,
+  prevClose: number
+): PivotLevels {
+  const pp = (prevHigh + prevLow + prevClose) / 3;
+  const r1 = 2 * pp - prevLow;
+  const s1 = 2 * pp - prevHigh;
+  const r2 = pp + (prevHigh - prevLow);
+  const s2 = pp - (prevHigh - prevLow);
+  const r3 = prevHigh + 2 * (pp - prevLow);
+  const s3 = prevLow - 2 * (prevHigh - pp);
+  return { pp, r1, r2, r3, s1, s2, s3 };
+}
+
+// ─── Ichimoku Cloud ───────────────────────────────────────────────────
+
+export interface IchimokuValues {
+  tenkan: (number | null)[]; // conversion line
+  kijun: (number | null)[]; // base line
+  senkouA: (number | null)[]; // leading span A (already shifted forward)
+  senkouB: (number | null)[]; // leading span B (already shifted forward)
+  chikou: (number | null)[]; // lagging span (already shifted back)
+}
+
+/**
+ * Ichimoku Kinkō Hyō. Lengths default to 9 / 26 / 52. Senkou spans
+ * are shifted forward by `kijun`; Chikou is shifted back by `kijun`.
+ * Series are returned aligned to the kline timeline — null where the
+ * shifted value falls outside the available range.
+ */
+export function ichimoku(
+  highs: number[],
+  lows: number[],
+  closes: number[],
+  tenkanPeriod = 9,
+  kijunPeriod = 26,
+  senkouBPeriod = 52
+): IchimokuValues {
+  const n = highs.length;
+  const rangeMid = (period: number) => {
+    const out: (number | null)[] = Array(n).fill(null);
+    for (let i = period - 1; i < n; i++) {
+      let hh = -Infinity;
+      let ll = Infinity;
+      for (let j = i - period + 1; j <= i; j++) {
+        if (highs[j] > hh) hh = highs[j];
+        if (lows[j] < ll) ll = lows[j];
+      }
+      out[i] = (hh + ll) / 2;
+    }
+    return out;
+  };
+
+  const tenkan = rangeMid(tenkanPeriod);
+  const kijun = rangeMid(kijunPeriod);
+  const senkouBRaw = rangeMid(senkouBPeriod);
+
+  const senkouA: (number | null)[] = Array(n).fill(null);
+  const senkouB: (number | null)[] = Array(n).fill(null);
+  // Shift A and B forward by kijunPeriod
+  for (let i = 0; i < n; i++) {
+    const dest = i + kijunPeriod;
+    if (dest >= n) continue;
+    const a = tenkan[i];
+    const b = kijun[i];
+    if (a !== null && b !== null) senkouA[dest] = (a + b) / 2;
+    const sb = senkouBRaw[i];
+    if (sb !== null) senkouB[dest] = sb;
+  }
+
+  // Chikou shifted backward by kijunPeriod
+  const chikou: (number | null)[] = Array(n).fill(null);
+  for (let i = 0; i < n; i++) {
+    const dest = i - kijunPeriod;
+    if (dest < 0) continue;
+    chikou[dest] = closes[i];
+  }
+
+  return { tenkan, kijun, senkouA, senkouB, chikou };
+}
+
 // ─── Cross detection ──────────────────────────────────────────────────
 
 /**

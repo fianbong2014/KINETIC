@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowUpRight,
+  Bell,
   Camera,
   ChevronDown,
   Circle,
@@ -47,6 +48,8 @@ import {
   DrawingsPrimitive,
 } from "@/lib/chart/drawings-primitive";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { useAlerts } from "@/hooks/use-alerts";
+import { useToast } from "@/components/providers/toast-provider";
 import {
   bollingerBands,
   toHeikinAshi,
@@ -55,7 +58,16 @@ import {
   type IndicatorToggles,
   type OhlcCandle,
 } from "@/lib/chart-config";
-import { ema, sma, supertrend } from "@/lib/indicators";
+import {
+  donchian,
+  ema,
+  ichimoku,
+  keltner,
+  parabolicSar,
+  pivotPoints,
+  sma,
+  supertrend,
+} from "@/lib/indicators";
 import { INDICATOR_META } from "@/lib/chart-config";
 
 interface FullChartProps {
@@ -80,7 +92,8 @@ type DrawTool =
   | "fibfan"
   | "channel"
   | "pitchfork"
-  | "fibext";
+  | "fibext"
+  | "alert";
 
 // Tools that need three clicks to define.
 const THREE_POINT_TOOLS = new Set<DrawTool>([
@@ -94,6 +107,7 @@ const ONE_POINT_TOOLS = new Set<DrawTool>([
   "vline",
   "text",
   "position",
+  "alert",
 ]);
 
 interface ToolDef {
@@ -161,6 +175,11 @@ const TOOL_GROUPS: { group: string; tools: ToolDef[] }[] = [
         label: "Long/Short position",
         icon: <Target size={14} />,
       },
+      {
+        id: "alert",
+        label: "Price alert",
+        icon: <Bell size={14} />,
+      },
     ],
   },
 ];
@@ -208,7 +227,9 @@ async function fetchKlines(
  * customization, not trade execution.
  */
 export function FullChart({ config }: FullChartProps) {
-  const { symbol, pair } = usePrice();
+  const { symbol, pair, price: livePrice } = usePrice();
+  const { alerts, create: createAlert } = useAlerts();
+  const toast = useToast();
   const [klines, setKlines] = useState<KlineRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [fullscreen, setFullscreen] = useState(false);
@@ -219,6 +240,17 @@ export function FullChart({ config }: FullChartProps) {
   const [clearConfirm, setClearConfirm] = useState(false);
   const [toolMenu, setToolMenu] = useState(false);
   const [magnet, setMagnet] = useState(false);
+  const [pendingAlert, setPendingAlert] = useState<{
+    price: number;
+    direction: "above" | "below";
+  } | null>(null);
+  // Active price-line handles for visible alerts, keyed by alert id.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const alertLinesRef = useRef<Map<string, any>>(new Map());
+  const livePriceRef = useRef(0);
+  useEffect(() => {
+    livePriceRef.current = livePrice;
+  }, [livePrice]);
   const [textEdit, setTextEdit] = useState<{
     id: string;
     value: string;
@@ -418,11 +450,19 @@ export function FullChart({ config }: FullChartProps) {
   useEffect(() => {
     const series = priceSeriesRef.current;
     if (!series) return;
-    const primitive = new DrawingsPrimitive(() => ({
-      drawings: drawingsRef.current,
-      symbol: symbolRef.current,
-      selectedId: selectedRef.current,
-    }));
+    // Touch devices need a fatter handle and a wider hit tolerance
+    // so finger taps reliably grab drag points and shape bodies.
+    const coarse =
+      typeof window !== "undefined" &&
+      window.matchMedia?.("(pointer: coarse)").matches;
+    const primitive = new DrawingsPrimitive(
+      () => ({
+        drawings: drawingsRef.current,
+        symbol: symbolRef.current,
+        selectedId: selectedRef.current,
+      }),
+      coarse ? { handleSize: 18, hitTol: 12 } : undefined
+    );
     try {
       series.attachPrimitive(primitive);
       primitiveRef.current = primitive;
@@ -438,6 +478,47 @@ export function FullChart({ config }: FullChartProps) {
       if (primitiveRef.current === primitive) primitiveRef.current = null;
     };
   }, [priceSeriesVersion]);
+
+  // ─ Sync active alerts as price lines on the price series.
+  useEffect(() => {
+    const series = priceSeriesRef.current;
+    if (!series) return;
+    const active = alerts.filter(
+      (a) => a.symbol === symbol && a.active && !a.triggeredAt
+    );
+    const activeIds = new Set(active.map((a) => a.id));
+
+    for (const [id, line] of alertLinesRef.current.entries()) {
+      if (!activeIds.has(id)) {
+        try {
+          series.removePriceLine(line);
+        } catch {
+          // ignore
+        }
+        alertLinesRef.current.delete(id);
+      }
+    }
+    for (const a of active) {
+      if (alertLinesRef.current.has(a.id)) continue;
+      try {
+        const line = series.createPriceLine({
+          price: a.price,
+          color: "#fbbf24",
+          lineWidth: 1,
+          lineStyle: 2,
+          axisLabelVisible: true,
+          title: `🔔 ${a.direction === "above" ? "↑" : "↓"} ${a.price.toFixed(2)}`,
+        });
+        alertLinesRef.current.set(a.id, line);
+      } catch {
+        // ignore
+      }
+    }
+    // Clear the local map on series rebuild so re-attach recreates lines.
+    return () => {
+      alertLinesRef.current.clear();
+    };
+  }, [alerts, symbol, priceSeriesVersion]);
 
   // Push the pre-change snapshot for undo (clears the redo stack).
   const pushHistory = useCallback((prev: Drawing[]) => {
@@ -491,6 +572,9 @@ export function FullChart({ config }: FullChartProps) {
     };
 
     const onPointerDown = (e: PointerEvent) => {
+      // Ignore secondary touch fingers — keeps pinch-to-zoom intact
+      // and prevents a second tap from adding stray drawing points.
+      if (!e.isPrimary) return;
       const prim = primitiveRef.current;
       if (!prim) return;
       const { x, y } = relpos(e);
@@ -556,6 +640,15 @@ export function FullChart({ config }: FullChartProps) {
             target: p.price * 1.02,
             stop: p.price * 0.99,
           });
+          return;
+        }
+        if (tool === "alert") {
+          const cur = livePriceRef.current;
+          const direction: "above" | "below" =
+            cur > 0 && p.price < cur ? "below" : "above";
+          setPendingAlert({ price: p.price, direction });
+          setPendingPts([]);
+          setTool("select");
           return;
         }
 
@@ -700,6 +793,28 @@ export function FullChart({ config }: FullChartProps) {
       el.removeEventListener("dblclick", onDblClick);
     };
   }, [tool, pendingPts, magnet, pushHistory]);
+
+  const confirmCreateAlert = useCallback(async () => {
+    if (!pendingAlert) return;
+    try {
+      await createAlert({
+        symbol,
+        price: pendingAlert.price,
+        direction: pendingAlert.direction,
+      });
+      toast.success(
+        "Alert created",
+        `${pair.display} ${pendingAlert.direction === "above" ? "↑" : "↓"} ${pendingAlert.price.toFixed(2)}`
+      );
+    } catch (err) {
+      toast.error(
+        "Couldn’t save alert",
+        err instanceof Error ? err.message : "Sign in to save price alerts"
+      );
+    } finally {
+      setPendingAlert(null);
+    }
+  }, [pendingAlert, createAlert, symbol, pair.display, toast]);
 
   const commitTextEdit = useCallback(() => {
     if (!textEdit) return;
@@ -1111,6 +1226,114 @@ export function FullChart({ config }: FullChartProps) {
       downSeries.setData(downData);
       indicatorSeriesRef.current.set("supertrend_down", downSeries);
     }
+
+    const highs = klines.map((k) => k.high);
+    const lows = klines.map((k) => k.low);
+
+    if (ind.donchian) {
+      const dc = donchian(highs, lows, 20);
+      addLine("donchian_upper", dc.upper, INDICATOR_META.donchian.color, 1);
+      addLine("donchian_lower", dc.lower, INDICATOR_META.donchian.color, 1);
+      addLine(
+        "donchian_middle",
+        dc.middle,
+        INDICATOR_META.donchian.color,
+        1
+      );
+    }
+
+    if (ind.keltner) {
+      const kc = keltner(highs, lows, closes, 20, 10, 2);
+      addLine("keltner_upper", kc.upper, INDICATOR_META.keltner.color, 1);
+      addLine("keltner_lower", kc.lower, INDICATOR_META.keltner.color, 1);
+      addLine("keltner_middle", kc.middle, INDICATOR_META.keltner.color, 1);
+    }
+
+    if (ind.ichimoku) {
+      const ich = ichimoku(highs, lows, closes);
+      addLine("ich_tenkan", ich.tenkan, "#22d3ee", 1);
+      addLine("ich_kijun", ich.kijun, "#f472b6", 1);
+      addLine("ich_spanA", ich.senkouA, "#50c878", 1);
+      addLine("ich_spanB", ich.senkouB, "#ff716c", 1);
+      addLine("ich_chikou", ich.chikou, "#a78bfa", 1);
+    }
+
+    if (ind.pivots && klines.length > 0) {
+      // Compute classic pivots from prior day relative to last bar.
+      const lastTime = klines[klines.length - 1].time;
+      const oneDay = 86_400;
+      const dayStart = Math.floor(lastTime / oneDay) * oneDay;
+      const prev = klines.filter(
+        (k) => k.time >= dayStart - oneDay && k.time < dayStart
+      );
+      if (prev.length > 0) {
+        const ph = Math.max(...prev.map((k) => k.high));
+        const pl = Math.min(...prev.map((k) => k.low));
+        const pc = prev[prev.length - 1].close;
+        const lv = pivotPoints(ph, pl, pc);
+        const dotted = (label: string, price: number) => {
+          const series = chart.addSeries(mod.LineSeries, {
+            color: INDICATOR_META.pivots.color,
+            lineWidth: 1,
+            lineStyle: 2,
+            priceLineVisible: false,
+            lastValueVisible: false,
+            title: label,
+          });
+          series.setData(
+            klines.map((k) => ({ time: k.time, value: price }))
+          );
+          indicatorSeriesRef.current.set(`piv_${label}`, series);
+        };
+        dotted("PP", lv.pp);
+        dotted("R1", lv.r1);
+        dotted("R2", lv.r2);
+        dotted("R3", lv.r3);
+        dotted("S1", lv.s1);
+        dotted("S2", lv.s2);
+        dotted("S3", lv.s3);
+      }
+    }
+
+    if (ind.sar) {
+      const sar = parabolicSar(highs, lows);
+      // Dot series — render as tiny LineSeries with point markers
+      // (no connecting line via lineStyle:Hidden? lightweight-charts
+      // line series always draws lines; use a LineSeries with
+      // crosshair markers off and per-bar values — fine for a SAR
+      // dotted look. To keep it visually distinct from real lines we
+      // hide the line entirely using lineVisible:false and rely on
+      // point markers).
+      const upPts = sar
+        .map((p) =>
+          p.trend === 1
+            ? { time: klines[p.index].time, value: p.price }
+            : null
+        )
+        .filter((p): p is { time: number; value: number } => p !== null);
+      const dnPts = sar
+        .map((p) =>
+          p.trend === -1
+            ? { time: klines[p.index].time, value: p.price }
+            : null
+        )
+        .filter((p): p is { time: number; value: number } => p !== null);
+      const mkSeries = (color: string, id: string, data: typeof upPts) => {
+        const s = chart.addSeries(mod.LineSeries, {
+          color,
+          lineWidth: 1,
+          lineVisible: false,
+          pointMarkersVisible: true,
+          pointMarkersRadius: 2,
+          priceLineVisible: false,
+          lastValueVisible: false,
+        });
+        s.setData(data);
+        indicatorSeriesRef.current.set(id, s);
+      };
+      mkSeries("#50c878", "sar_up", upPts);
+      mkSeries("#ff716c", "sar_dn", dnPts);
+    }
   }, [klines, config.indicators]);
 
   // Re-render layers when their inputs change
@@ -1449,6 +1672,21 @@ export function FullChart({ config }: FullChartProps) {
         destructive
         onConfirm={confirmClearDrawings}
         onCancel={() => setClearConfirm(false)}
+      />
+
+      <ConfirmDialog
+        open={pendingAlert !== null}
+        title="Create price alert"
+        message={
+          pendingAlert
+            ? `Notify when ${pair.display} crosses ${
+                pendingAlert.direction
+              } ${pendingAlert.price.toFixed(2)}?`
+            : ""
+        }
+        confirmLabel="Create alert"
+        onConfirm={confirmCreateAlert}
+        onCancel={() => setPendingAlert(null)}
       />
 
       {textEdit && (
