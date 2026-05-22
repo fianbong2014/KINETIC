@@ -5,10 +5,10 @@ import {
   ArrowUpRight,
   Bell,
   Camera,
-  ChevronDown,
   Circle,
   Copy,
   GitCommitVertical,
+  GripVertical,
   Magnet,
   Redo2,
   Spline,
@@ -57,6 +57,7 @@ import {
   type ChartConfig,
   type IndicatorToggles,
   type OhlcCandle,
+  type Timeframe,
 } from "@/lib/chart-config";
 import {
   donchian,
@@ -238,7 +239,28 @@ export function FullChart({ config }: FullChartProps) {
   const [drawings, setDrawings] = useState<Drawing[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [clearConfirm, setClearConfirm] = useState(false);
-  const [toolMenu, setToolMenu] = useState(false);
+  // Floating drawing-toolbar position (CSS pixels relative to chart
+  // container). Persisted across reloads.
+  const [toolbarPos, setToolbarPos] = useState<{ x: number; y: number }>({
+    x: 8,
+    y: 8,
+  });
+  const toolbarDragRef = useRef<{
+    startX: number;
+    startY: number;
+    origX: number;
+    origY: number;
+  } | null>(null);
+  // Group flyout state — TradingView-style: each group is one slot,
+  // clicking opens a horizontal flyout with the group's tools.
+  const [openGroup, setOpenGroup] = useState<string | null>(null);
+  const [lastInGroup, setLastInGroup] = useState<
+    Record<string, Exclude<DrawTool, "select">>
+  >(() => {
+    const init = {} as Record<string, Exclude<DrawTool, "select">>;
+    for (const g of TOOL_GROUPS) init[g.group] = g.tools[0].id;
+    return init;
+  });
   const [magnet, setMagnet] = useState(false);
   const [pendingAlert, setPendingAlert] = useState<{
     price: number;
@@ -922,6 +944,79 @@ export function FullChart({ config }: FullChartProps) {
     });
   }, [selectedId, symbol, pushHistory]);
 
+  // ─ Floating drawing-toolbar drag + persistence
+  const onToolbarGripDown = useCallback(
+    (e: React.PointerEvent) => {
+      e.stopPropagation();
+      e.preventDefault();
+      toolbarDragRef.current = {
+        startX: e.clientX,
+        startY: e.clientY,
+        origX: toolbarPos.x,
+        origY: toolbarPos.y,
+      };
+      const onMove = (ev: PointerEvent) => {
+        const d = toolbarDragRef.current;
+        if (!d) return;
+        const container = containerRef.current;
+        const w = container?.clientWidth ?? 1200;
+        const h = container?.clientHeight ?? 600;
+        const nx = Math.max(
+          0,
+          Math.min(w - 40, d.origX + (ev.clientX - d.startX))
+        );
+        const ny = Math.max(
+          0,
+          Math.min(h - 40, d.origY + (ev.clientY - d.startY))
+        );
+        setToolbarPos({ x: nx, y: ny });
+      };
+      const onUp = () => {
+        toolbarDragRef.current = null;
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", onUp);
+      };
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp);
+    },
+    [toolbarPos.x, toolbarPos.y]
+  );
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem("kinetic:chartToolbarPos");
+      if (raw) {
+        const p = JSON.parse(raw);
+        if (typeof p?.x === "number" && typeof p?.y === "number") {
+          setToolbarPos({ x: p.x, y: p.y });
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        "kinetic:chartToolbarPos",
+        JSON.stringify(toolbarPos)
+      );
+    } catch {
+      // ignore
+    }
+  }, [toolbarPos]);
+
+  // Close a group flyout when clicking anywhere outside the toolbar.
+  // The toolbar root stops bubble propagation on pointerdown, so this
+  // bubble-phase listener only fires for clicks elsewhere.
+  useEffect(() => {
+    if (!openGroup) return;
+    const handler = () => setOpenGroup(null);
+    window.addEventListener("pointerdown", handler);
+    return () => window.removeEventListener("pointerdown", handler);
+  }, [openGroup]);
+
   // ─ Keyboard: Delete removes selection, Esc cancels/deselects
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -979,8 +1074,10 @@ export function FullChart({ config }: FullChartProps) {
     let cancelled = false;
     setLoading(true);
 
-    const limit =
-      tf === "1m" || tf === "5m" ? 240 : tf === "1w" ? 150 : 200;
+    // History depth: short TFs get 240 (~hours of data); 15m and up
+    // get 700 so long-period indicators (Ichimoku 52, Pivot windows,
+    // Donchian 20+) have plenty of history to settle.
+    const limit = tf === "1m" || tf === "5m" ? 240 : 700;
 
     fetchKlines(symbol, tf, limit)
       .then((rows) => {
@@ -1349,6 +1446,76 @@ export function FullChart({ config }: FullChartProps) {
     buildIndicators();
   }, [buildIndicators]);
 
+  // ─ Live update last bar from the global PriceProvider ticker.
+  // Mirrors the dashboard chart: on every WS price tick we either
+  // extend the current candle's high/low/close or open a new bar
+  // when the interval boundary is crossed. Indicators only recompute
+  // on a new-bar event (not per tick) to keep paint cheap.
+  useEffect(() => {
+    const series = priceSeriesRef.current;
+    if (!series || livePrice <= 0) return;
+    if (config.chartType === "heikin_ashi") return;
+    const arr = klinesRef.current;
+    if (arr.length === 0) return;
+
+    const intervalSec: Record<Timeframe, number> = {
+      "1m": 60,
+      "5m": 300,
+      "15m": 900,
+      "30m": 1800,
+      "1h": 3600,
+      "4h": 14400,
+      "1d": 86400,
+      "1w": 604800,
+    };
+    const step = intervalSec[config.timeframe];
+    if (!step) return;
+
+    const now = Math.floor(Date.now() / 1000);
+    const candleTime = Math.floor(now / step) * step;
+    const last = arr[arr.length - 1];
+
+    if (candleTime > last.time) {
+      const fresh: KlineRow = {
+        time: candleTime,
+        open: livePrice,
+        high: livePrice,
+        low: livePrice,
+        close: livePrice,
+        volume: 0,
+      };
+      arr.push(fresh);
+      try {
+        if (config.chartType === "line" || config.chartType === "area") {
+          series.update({ time: candleTime, value: livePrice });
+        } else {
+          series.update(fresh);
+        }
+      } catch {
+        // series swapped out by a rebuild — next effect run will catch up
+      }
+      // New-bar event: refresh klines state so indicators recompute.
+      setKlines([...arr]);
+    } else {
+      const updated: KlineRow = {
+        ...last,
+        high: Math.max(last.high, livePrice),
+        low: Math.min(last.low, livePrice),
+        close: livePrice,
+      };
+      arr[arr.length - 1] = updated;
+      try {
+        if (config.chartType === "line" || config.chartType === "area") {
+          series.update({ time: updated.time, value: livePrice });
+        } else {
+          series.update(updated);
+        }
+      } catch {
+        // ignore — primitive will repaint on next pass
+      }
+    }
+  }, [livePrice, config.timeframe, config.chartType, priceSeriesVersion]);
+
   const activeDrawings = drawings.filter((d) => d.symbol === symbol);
   const selectedDrawing =
     tool === "select"
@@ -1389,90 +1556,8 @@ export function FullChart({ config }: FullChartProps) {
         )}
       </div>
 
-      {/* Tool palette */}
+      {/* Chart-level action bar (top-right) — screenshot + fullscreen */}
       <div className="absolute top-3 right-3 z-30 flex items-center gap-px bg-surface-container-low/90 backdrop-blur-sm">
-        <PaletteBtn
-          active={tool === "select"}
-          onClick={() => {
-            setTool("select");
-            setPendingPts([]);
-            setToolMenu(false);
-          }}
-          title="Select / move (Esc)"
-        >
-          <MousePointer2 size={14} />
-        </PaletteBtn>
-
-        {/* Grouped tools dropdown */}
-        <div className="relative">
-          <button
-            onClick={() => setToolMenu((v) => !v)}
-            className={`flex items-center gap-1 p-2 transition-colors ${
-              tool !== "select"
-                ? "bg-cyan/15 text-cyan"
-                : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container"
-            }`}
-            title="Drawing tools"
-          >
-            <TrendingUp size={14} />
-            <ChevronDown
-              size={11}
-              className={toolMenu ? "rotate-180 transition-transform" : "transition-transform"}
-            />
-          </button>
-          {toolMenu && (
-            <div className="absolute top-full right-0 mt-1 w-52 bg-surface-container-high shadow-2xl py-1">
-              {TOOL_GROUPS.map((g) => (
-                <div key={g.group}>
-                  <p className="px-3 pt-2 pb-1 text-[9px] font-bold tracking-widest uppercase text-on-surface-variant/60">
-                    {g.group}
-                  </p>
-                  {g.tools.map((t) => (
-                    <button
-                      key={t.id}
-                      onClick={() => {
-                        setTool(t.id);
-                        setPendingPts([]);
-                        setToolMenu(false);
-                      }}
-                      className={`w-full flex items-center gap-2.5 px-3 py-1.5 text-xs transition-colors ${
-                        tool === t.id
-                          ? "bg-cyan/10 text-cyan"
-                          : "text-on-surface hover:bg-surface-container-highest"
-                      }`}
-                    >
-                      <span className="shrink-0">{t.icon}</span>
-                      {t.label}
-                    </button>
-                  ))}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <PaletteBtn
-          active={magnet}
-          onClick={() => setMagnet((v) => !v)}
-          title="Magnet — snap to candle OHLC"
-        >
-          <Magnet size={14} />
-        </PaletteBtn>
-        <PaletteBtn onClick={undo} title="Undo (Ctrl+Z)">
-          <Undo2 size={14} />
-        </PaletteBtn>
-        <PaletteBtn onClick={redo} title="Redo (Ctrl+Shift+Z)">
-          <Redo2 size={14} />
-        </PaletteBtn>
-        {activeDrawings.length > 0 && (
-          <PaletteBtn
-            onClick={() => setClearConfirm(true)}
-            title="Clear all drawings"
-          >
-            <Trash2 size={14} />
-          </PaletteBtn>
-        )}
-        <span className="w-px h-5 bg-outline-variant/20" />
         <PaletteBtn onClick={handleScreenshot} title="Save screenshot">
           <Camera size={14} />
         </PaletteBtn>
@@ -1482,6 +1567,103 @@ export function FullChart({ config }: FullChartProps) {
         >
           {fullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
         </PaletteBtn>
+      </div>
+
+      {/* Drawing toolbar — vertical strip on the left, draggable */}
+      <div
+        className="absolute z-30 flex flex-col items-stretch gap-px bg-surface-container-low/95 backdrop-blur-sm shadow-xl select-none"
+        style={{ left: toolbarPos.x, top: toolbarPos.y, width: 32 }}
+        onPointerDown={(e) => e.stopPropagation()}
+        onDoubleClick={(e) => e.stopPropagation()}
+      >
+        {/* Drag handle */}
+        <button
+          onPointerDown={onToolbarGripDown}
+          className="flex items-center justify-center py-1 cursor-grab active:cursor-grabbing text-on-surface-variant hover:text-on-surface hover:bg-surface-container"
+          title="Drag to move"
+          aria-label="Move toolbar"
+        >
+          <GripVertical size={12} />
+        </button>
+        <ToolbarDivider />
+
+        <ToolbarBtn
+          active={tool === "select"}
+          onClick={() => {
+            setTool("select");
+            setPendingPts([]);
+          }}
+          title="Select / move (Esc)"
+        >
+          <MousePointer2 size={14} />
+        </ToolbarBtn>
+
+        {TOOL_GROUPS.map((g) => {
+          const activeId = lastInGroup[g.group];
+          const activeIcon =
+            g.tools.find((t) => t.id === activeId)?.icon ?? null;
+          const groupActive = g.tools.some((t) => t.id === tool);
+          return (
+            <div key={g.group} className="relative">
+              <ToolbarDivider />
+              <ToolbarBtn
+                active={groupActive}
+                onClick={() =>
+                  setOpenGroup(openGroup === g.group ? null : g.group)
+                }
+                title={`${g.group} — click for tools`}
+                badge
+              >
+                {activeIcon}
+              </ToolbarBtn>
+              {openGroup === g.group && (
+                <div
+                  className="absolute left-full top-0 ml-1 z-40 flex bg-surface-container-low/95 backdrop-blur-sm shadow-2xl"
+                  onPointerDown={(e) => e.stopPropagation()}
+                >
+                  {g.tools.map((t) => (
+                    <ToolbarBtn
+                      key={t.id}
+                      active={tool === t.id}
+                      onClick={() => {
+                        setTool(t.id);
+                        setPendingPts([]);
+                        setLastInGroup((p) => ({ ...p, [g.group]: t.id }));
+                        setOpenGroup(null);
+                      }}
+                      title={t.label}
+                    >
+                      {t.icon}
+                    </ToolbarBtn>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+        <ToolbarDivider />
+
+        <ToolbarBtn
+          active={magnet}
+          onClick={() => setMagnet((v) => !v)}
+          title="Magnet — snap to candle OHLC"
+        >
+          <Magnet size={14} />
+        </ToolbarBtn>
+        <ToolbarBtn onClick={undo} title="Undo (Ctrl+Z)">
+          <Undo2 size={14} />
+        </ToolbarBtn>
+        <ToolbarBtn onClick={redo} title="Redo (Ctrl+Shift+Z)">
+          <Redo2 size={14} />
+        </ToolbarBtn>
+        {activeDrawings.length > 0 && (
+          <ToolbarBtn
+            onClick={() => setClearConfirm(true)}
+            title="Clear all drawings"
+          >
+            <Trash2 size={14} />
+          </ToolbarBtn>
+        )}
       </div>
 
       {/* Style popover — shown when a drawing is selected */}
@@ -1771,6 +1953,42 @@ function PaletteBtn({
       {children}
     </button>
   );
+}
+
+// Square button used inside the vertical / flyout drawing toolbar.
+function ToolbarBtn({
+  children,
+  onClick,
+  active,
+  title,
+  badge,
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
+  active?: boolean;
+  title: string;
+  badge?: boolean;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      className={`relative h-8 w-8 shrink-0 flex items-center justify-center transition-colors ${
+        active
+          ? "bg-cyan/15 text-cyan"
+          : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container"
+      }`}
+    >
+      {children}
+      {badge && (
+        <span className="absolute right-0.5 bottom-0.5 w-1 h-1 bg-cyan" />
+      )}
+    </button>
+  );
+}
+
+function ToolbarDivider() {
+  return <span className="h-px w-full bg-outline-variant/20" />;
 }
 
 // Visual key for active indicators — rendered in the toolbar
