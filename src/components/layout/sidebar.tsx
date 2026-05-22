@@ -14,11 +14,16 @@ import {
   Bot,
   Bitcoin,
   CandlestickChart,
+  Coins,
 } from "lucide-react";
+import { usePrice } from "@/components/providers/price-provider";
 
 const navItems = [
   { icon: LayoutGrid, label: "Terminal", href: "/dashboard" },
   { icon: Bitcoin, label: "BTC", href: "/btc" },
+  // Symbol/coin info page — href is built dynamically from the active pair
+  // so this menu always opens the currently-watched coin's detail view.
+  { icon: Coins, label: "Coin", href: "/symbol" },
   { icon: CandlestickChart, label: "Chart", href: "/chart" },
   { icon: LineChart, label: "Analytics", href: "/signals" },
   { icon: Bot, label: "Bots", href: "/bots" },
@@ -29,6 +34,13 @@ const navItems = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { symbol } = usePrice();
+  // Resolve the Coin item to /symbol/<active pair> at render time.
+  const resolvedItems = navItems.map((item) =>
+    item.href === "/symbol"
+      ? { ...item, href: `/symbol/${symbol}` }
+      : item,
+  );
 
   return (
     <aside className="fixed left-0 top-0 bottom-0 w-20 bg-surface-container-low flex flex-col items-center py-4 z-50">
@@ -42,10 +54,14 @@ export function Sidebar() {
 
       {/* Nav items */}
       <nav className="flex flex-col items-center flex-1 w-full">
-        {navItems.map((item) => {
+        {resolvedItems.map((item) => {
+          // Active when the path is on /symbol/* regardless of which symbol,
+          // so the Coin tab stays highlighted while you browse coins.
           const isActive =
-            pathname === item.href ||
-            (item.href !== "#" && pathname?.startsWith(item.href));
+            item.label === "Coin"
+              ? pathname?.startsWith("/symbol") ?? false
+              : pathname === item.href ||
+                (item.href !== "#" && pathname?.startsWith(item.href));
           return (
             <Link
               key={item.label}
