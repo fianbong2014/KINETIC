@@ -40,6 +40,11 @@ export interface IndicatorToggles {
   bbands: boolean; // Bollinger Bands (20, 2)
   vwap: boolean;
   supertrend: boolean; // ATR-based trend overlay (10, 3)
+  donchian: boolean; // Donchian channel (20)
+  keltner: boolean; // Keltner channel (EMA 20, ATR 10, 2)
+  sar: boolean; // Parabolic SAR (0.02, 0.2)
+  pivots: boolean; // Classic daily pivot points
+  ichimoku: boolean; // Ichimoku 9/26/52
   volume: boolean;
 }
 
@@ -72,6 +77,11 @@ export const DEFAULT_CHART_CONFIG: ChartConfig = {
     bbands: false,
     vwap: false,
     supertrend: false,
+    donchian: false,
+    keltner: false,
+    sar: false,
+    pivots: false,
+    ichimoku: false,
     volume: true,
   },
   oscillators: {
@@ -122,6 +132,31 @@ export const INDICATOR_META: Record<
     label: "Supertrend",
     color: "#50c878",
     description: "ATR trend flip · 10, 3",
+  },
+  donchian: {
+    label: "Donchian",
+    color: "#7dd3fc",
+    description: "20-period high/low channel",
+  },
+  keltner: {
+    label: "Keltner",
+    color: "#fb7185",
+    description: "EMA 20 · ATR 10 · 2",
+  },
+  sar: {
+    label: "Parabolic SAR",
+    color: "#facc15",
+    description: "Step 0.02 · max 0.2",
+  },
+  pivots: {
+    label: "Pivot points",
+    color: "#c084fc",
+    description: "Classic daily PP / R / S",
+  },
+  ichimoku: {
+    label: "Ichimoku",
+    color: "#22d3ee",
+    description: "9 / 26 / 52 cloud",
   },
   volume: {
     label: "Volume",

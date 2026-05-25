@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Eye, ArrowUpDown } from "lucide-react";
+import Link from "next/link";
+import { Eye, ArrowUpDown, ChevronRight } from "lucide-react";
 import { useWatchlist, type WatchlistRow } from "@/hooks/use-watchlist";
 import { usePrice } from "@/components/providers/price-provider";
 import { formatPrice } from "@/lib/format";
@@ -112,9 +113,17 @@ function WatchlistRowCmp({
   const changeColor = positive ? "text-emerald-accent" : "text-crimson";
 
   return (
-    <button
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onSelect}
-      className={`grid grid-cols-[1fr_70px_60px_70px_30px] items-center gap-2 px-1 py-2 text-left transition-colors ${
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onSelect();
+        }
+      }}
+      className={`grid grid-cols-[1fr_70px_60px_70px_30px] items-center gap-2 px-1 py-2 text-left transition-colors cursor-pointer ${
         isActive
           ? "bg-cyan/10 hover:bg-cyan/15"
           : "hover:bg-surface-container"
@@ -172,11 +181,23 @@ function WatchlistRowCmp({
         )}
       </div>
 
-      {/* Active indicator */}
-      <span className="text-[10px] text-on-surface-variant text-right">
-        {isActive ? "●" : "›"}
-      </span>
-    </button>
+      {/* Active indicator + deep link to the coin detail page */}
+      <div className="flex items-center justify-end gap-1">
+        {isActive && (
+          <span className="text-[10px] text-cyan" aria-hidden>
+            ●
+          </span>
+        )}
+        <Link
+          href={`/symbol/${row.pair.symbol}`}
+          onClick={(e) => e.stopPropagation()}
+          aria-label={`Open ${row.pair.display} detail`}
+          className="text-on-surface-variant hover:text-cyan p-0.5"
+        >
+          <ChevronRight className="w-3.5 h-3.5" />
+        </Link>
+      </div>
+    </div>
   );
 }
 
