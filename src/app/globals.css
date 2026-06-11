@@ -314,6 +314,23 @@
   }
 }
 
+/* ─── Floating mobile nav (iOS/Instagram-style capsule) ─────────────
+   Opt-in override of the global zero-radius reset so the bottom bar and
+   its active-item pill render as rounded capsules. Same cascade-layer
+   trick as `.google-ws`: scoped selectors out-specify the universal `*`. */
+@layer base {
+  .kx-float-nav,
+  .kx-float-nav .kx-pill {
+    border-radius: 9999px !important;
+  }
+  .kx-float-sheet {
+    border-radius: 24px 24px 0 0 !important;
+  }
+  .kx-float-sheet .kx-sheet-item {
+    border-radius: 14px !important;
+  }
+}
+
 /* ─── react-grid-layout (Workspace #2) ─────────────────────────────── */
 .react-grid-layout {
   position: relative;
