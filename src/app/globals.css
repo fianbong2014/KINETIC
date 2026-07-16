@@ -331,6 +331,87 @@
   }
 }
 
+/* ─── iOS liquid-glass scope (Backoffice) ────────────────────────────
+   Opt-in override of the global zero-radius reset, same cascade-layer
+   trick as `.google-ws`. Everything is keyed off explicit ig-* classes
+   so the rest of the app keeps its sharp-polygon look. */
+@layer base {
+  .ios-glass .ig-panel {
+    border-radius: 24px !important;
+  }
+  .ios-glass .ig-sheet {
+    border-radius: 28px !important;
+  }
+  .ios-glass .ig-card {
+    border-radius: 18px !important;
+  }
+  .ios-glass .ig-row {
+    border-radius: 16px !important;
+  }
+  .ios-glass .ig-tile {
+    border-radius: 14px !important;
+  }
+  .ios-glass .ig-btn {
+    border-radius: 14px !important;
+  }
+  .ios-glass .ig-input {
+    border-radius: 12px !important;
+  }
+  .ios-glass .ig-pill,
+  .ios-glass .ig-badge {
+    border-radius: 9999px !important;
+  }
+  /* Shared ConfirmDialog renders inside the scope — soften it too. */
+  .ios-glass .bg-surface-container-high {
+    border-radius: 22px !important;
+  }
+}
+
+/* Glass surfaces — translucent fill + blur + hairline border + top sheen.
+   The fill is layered over a semi-opaque dark base so the frosted look
+   holds up even where a browser can't composite backdrop-filter. */
+.ios-glass .ig-panel,
+.ios-glass .ig-sheet {
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.03)),
+    rgba(20, 20, 22, 0.72);
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+.ios-glass .ig-sheet {
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.03)),
+    rgba(20, 20, 22, 0.9);
+}
+.ios-glass .ig-inset {
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+.ios-glass .ig-input {
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.ios-glass .ig-input:focus-within,
+.ios-glass input.ig-input:focus {
+  border-color: rgba(0, 255, 255, 0.5);
+  box-shadow: 0 0 0 3px rgba(0, 255, 255, 0.12);
+}
+/* Ambient backdrop blobs so the blur has something to refract. */
+.ios-glass .ig-ambient {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(600px 400px at 15% -5%, rgba(0, 255, 255, 0.09), transparent 70%),
+    radial-gradient(700px 500px at 90% 10%, rgba(255, 115, 76, 0.07), transparent 70%),
+    radial-gradient(800px 600px at 50% 110%, rgba(0, 255, 255, 0.05), transparent 70%);
+}
+
 /* ─── react-grid-layout (Workspace #2) ─────────────────────────────── */
 .react-grid-layout {
   position: relative;

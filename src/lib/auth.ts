@@ -32,7 +32,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         if (!isValid) return null;
 
-        return { id: user.id, name: user.name, email: user.email };
+        // Disabled accounts cannot sign in — same generic failure as a
+        // wrong password so we don't reveal the account exists.
+        if (user.disabled) return null;
+
+        return { id: user.id, name: user.name, email: user.email, role: user.role };
       },
     }),
   ],
@@ -40,12 +44,16 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     jwt({ token, user }) {
       if (user) {
         token.id = user.id;
+        // Role in the JWT is a UI hint only (e.g. show the Backoffice
+        // link) — authorization is always re-checked against the DB.
+        token.role = (user as { role?: string }).role;
       }
       return token;
     },
     session({ session, token }) {
       if (session.user && token.id) {
         session.user.id = token.id as string;
+        session.user.role = token.role as "USER" | "ADMIN" | undefined;
       }
       return session;
     },

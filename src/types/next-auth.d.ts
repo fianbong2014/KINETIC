@@ -7,6 +7,8 @@ declare module "next-auth" {
       name?: string | null;
       email?: string | null;
       image?: string | null;
+      /** UI hint only — enforcement always re-checks the DB. Absent on tokens issued before roles existed. */
+      role?: "USER" | "ADMIN";
     };
   }
 }

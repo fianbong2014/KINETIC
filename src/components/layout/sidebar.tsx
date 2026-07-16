@@ -2,12 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useSession } from "next-auth/react";
 import {
   LayoutGrid,
   LineChart,
   Shield,
   FileText,
   Settings,
+  Users,
   Zap,
   HelpCircle,
   Code,
@@ -35,12 +37,20 @@ const navItems = [
 export function Sidebar() {
   const pathname = usePathname();
   const { symbol } = usePrice();
+  const { data: session } = useSession();
+  // Role in the session is a UI hint from the JWT — the /backoffice
+  // layout and its APIs re-check the DB, so hiding the link here is
+  // purely cosmetic. Freshly promoted admins see it after re-login.
+  const isAdmin = session?.user?.role === "ADMIN";
   // Resolve the Coin item to /symbol/<active pair> at render time.
   const resolvedItems = navItems.map((item) =>
     item.href === "/symbol"
       ? { ...item, href: `/symbol/${symbol}` }
       : item,
   );
+  if (isAdmin) {
+    resolvedItems.push({ icon: Users, label: "Admin", href: "/backoffice" });
+  }
 
   return (
     <aside className="fixed left-0 top-0 bottom-0 w-20 bg-surface-container-low flex flex-col items-center py-4 z-50">

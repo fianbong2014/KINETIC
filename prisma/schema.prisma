@@ -9,6 +9,13 @@ datasource db {
 
 // ─── Auth.js tables ───────────────────────────────────────────
 
+enum Role {
+  USER
+  ADMIN
+}
+
+// Bootstrap the first admin directly in Postgres:
+//   UPDATE "User" SET "role" = 'ADMIN' WHERE "email" = 'you@example.com';
 model User {
   id             String    @id @default(cuid())
   name           String?
@@ -16,6 +23,8 @@ model User {
   emailVerified  DateTime?
   image          String?
   passwordHash   String?
+  role           Role      @default(USER)
+  disabled       Boolean   @default(false)
   settings       Json      @default("{}")
   paperBalance   Float     @default(10000)
   startingBalance Float    @default(10000)
@@ -288,4 +297,23 @@ model ExchangeCredential {
   // One credential per user per exchange — keep it simple. If they
   // need multi-account later, drop this and add a label-based unique.
   @@unique([userId, exchange])
+}
+
+// ─── Audit log ────────────────────────────────────────────────
+//
+// Immutable record of admin actions. Intentionally has NO relation to
+// User — audit rows must survive user deletion, so actorEmail/targetEmail
+// are point-in-time snapshots rather than joins.
+model AuditLog {
+  id          String   @id @default(cuid())
+  actorId     String
+  actorEmail  String
+  action      String   // e.g. "user.create", "user.role_change", "user.disable", "user.enable", "user.password_reset", "user.balance_reset", "user.update", "user.delete"
+  targetId    String?
+  targetEmail String?
+  meta        Json     @default("{}")
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([actorId])
 }

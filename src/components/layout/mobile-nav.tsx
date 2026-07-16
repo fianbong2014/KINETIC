@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useSession } from "next-auth/react";
 import {
   Terminal,
   BarChart3,
@@ -15,6 +16,7 @@ import {
   Home,
   Coins,
   LayoutGrid,
+  Users,
   X,
 } from "lucide-react";
 import { usePrice } from "@/components/providers/price-provider";
@@ -51,7 +53,18 @@ const MORE_NAV: NavItem[] = [
 export function MobileNav() {
   const pathname = usePathname();
   const { symbol } = usePrice();
+  const { data: session } = useSession();
   const [moreOpen, setMoreOpen] = useState(false);
+
+  // UI hint from the JWT only — /backoffice enforces the role server-side.
+  const isAdmin = session?.user?.role === "ADMIN";
+  const moreItems = useMemo(
+    () =>
+      isAdmin
+        ? [...MORE_NAV, { icon: Users, label: "Backoffice", href: "/backoffice" }]
+        : MORE_NAV,
+    [isAdmin]
+  );
 
   // Real attention dot: any alert that has already fired but not been cleared.
   const { alerts } = useAlerts({ includeTriggered: true });
@@ -84,7 +97,7 @@ export function MobileNav() {
     );
   };
 
-  const moreActive = MORE_NAV.some(isItemActive);
+  const moreActive = moreItems.some(isItemActive);
 
   return (
     <>
@@ -164,7 +177,7 @@ export function MobileNav() {
               </button>
             </div>
             <ul className="flex flex-col gap-1 px-3 pb-2">
-              {MORE_NAV.map((item) => {
+              {moreItems.map((item) => {
                 const isActive = isItemActive(item);
                 return (
                   <li key={item.href}>
