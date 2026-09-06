@@ -26,7 +26,7 @@ export interface ThemeSettings {
   border?: {
     color?: string; // solid hex
     opacity?: number; // 0..1, applied to the tonal border lines
-    radius?: number; // px — overrides the global zero-radius rule
+    radius?: number; // px — shared control and surface radius
   };
   fonts?: {
     heading?: string;
@@ -56,32 +56,32 @@ export type ThemeGroups = {
 
 export const DEFAULT_THEME: ThemeGroups = {
   accents: {
-    cyan: "#00ffff",
-    orange: "#ff734c",
-    emerald: "#50c878",
-    crimson: "#ff716c",
+    cyan: "#7ce8c3",
+    orange: "#e8a078",
+    emerald: "#7ce8a1",
+    crimson: "#f08787",
   },
   surfaces: {
-    background: "#0e0e0f",
-    lowest: "#000000",
-    low: "#131314",
-    container: "#1a191b",
-    high: "#201f21",
-    highest: "#262627",
+    background: "#101413",
+    lowest: "#0c100f",
+    low: "#141a18",
+    container: "#1a211e",
+    high: "#202925",
+    highest: "#28332d",
   },
   border: {
-    color: "#484849",
-    opacity: 0.15,
-    radius: 0,
+    color: "#53665a",
+    opacity: 0.25,
+    radius: 8,
   },
   fonts: {
-    heading: "'Space Grotesk', ui-sans-serif, system-ui, sans-serif",
-    body: "'Inter', ui-sans-serif, system-ui, sans-serif",
-    mono: "'Roboto Mono', ui-monospace, monospace",
+    heading: "var(--font-inter), ui-sans-serif, system-ui, sans-serif",
+    body: "var(--font-inter), ui-sans-serif, system-ui, sans-serif",
+    mono: "var(--font-roboto-mono), ui-monospace, monospace",
   },
   text: {
-    primary: "#ffffff",
-    muted: "#adaaab",
+    primary: "#edf3ef",
+    muted: "#9eafa5",
   },
 };
 
@@ -109,7 +109,7 @@ export const LIGHT_THEME: ThemeGroups = {
   border: {
     color: "#8a8a8d",
     opacity: 0.45,
-    radius: 0,
+    radius: 8,
   },
   fonts: { ...DEFAULT_THEME.fonts },
   text: {
@@ -125,8 +125,8 @@ export const THEME_PRESETS: Record<ThemeMode, ThemeGroups> = {
 
 export const FONT_OPTIONS = [
   { label: "Space Grotesk", value: "'Space Grotesk', ui-sans-serif, system-ui, sans-serif" },
-  { label: "Inter", value: "'Inter', ui-sans-serif, system-ui, sans-serif" },
-  { label: "Roboto Mono", value: "'Roboto Mono', ui-monospace, monospace" },
+  { label: "Inter", value: DEFAULT_THEME.fonts.body },
+  { label: "Roboto Mono", value: DEFAULT_THEME.fonts.mono },
   { label: "System UI", value: "ui-sans-serif, system-ui, sans-serif" },
   { label: "Serif", value: "Georgia, 'Times New Roman', serif" },
   { label: "Monospace", value: "ui-monospace, 'Cascadia Code', monospace" },
@@ -148,10 +148,8 @@ function hexToRgba(hex: string, alpha: number): string {
 }
 
 // Resolve a partial ThemeSettings into the concrete CSS custom properties that
-// need to be set on document.documentElement. Returns only the variables that
-// differ from the design-system default so we don't fight globals.css need-
-// lessly. Radius is returned separately because it requires an injected style
-// rule (the base layer enforces `border-radius: 0 !important`).
+// need to be set on document.documentElement, including the selected preset.
+// Radius is returned separately for the shared --radius property.
 export function resolveTheme(theme: ThemeSettings | undefined) {
   const t = theme ?? {};
   // The preset for the active mode is the base; explicit token overrides from
@@ -166,6 +164,8 @@ export function resolveTheme(theme: ThemeSettings | undefined) {
   const vars: Record<string, string> = {
     // Accents — each colour fans out to every alias that should track it.
     "--cyan-accent": a.cyan,
+    "--cyan-dim": a.cyan,
+    "--primary-foreground": t.mode === "light" ? "#ffffff" : "#102a22",
     "--primary": a.cyan,
     "--ring": a.cyan,
     "--sidebar-primary": a.cyan,
@@ -221,5 +221,15 @@ export function resolveTheme(theme: ThemeSettings | undefined) {
     "--sidebar-foreground": x.muted,
   };
 
-  return { vars, radius: b.radius ?? 0 };
+  const fontAliases: Record<string, string> = {
+    "'Inter'": "var(--font-inter)",
+    "'Roboto Mono'": "var(--font-roboto-mono)",
+    "'Space Grotesk'": "var(--font-space-grotesk)",
+  };
+  for (const key of ["--font-heading", "--font-sans", "--font-mono"]) {
+    for (const [name, variable] of Object.entries(fontAliases)) {
+      vars[key] = vars[key].replace(name, variable);
+    }
+  }
+  return { vars, radius: b.radius };
 }

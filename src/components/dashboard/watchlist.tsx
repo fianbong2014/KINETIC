@@ -44,8 +44,8 @@ export function Watchlist() {
   const sorted = sortRows(rows, sortKey);
 
   return (
-    <section className="bg-surface-container-low p-4 lg:p-5 flex flex-col gap-3">
-      <div className="flex items-center justify-between gap-3">
+    <section className="kx-watchlist bg-surface-container-low p-4 flex min-w-0 flex-col gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <Eye className="w-4 h-4 text-cyan" />
           <h2 className="font-heading text-sm font-bold tracking-widest uppercase text-on-surface">
@@ -72,7 +72,7 @@ export function Watchlist() {
       </div>
 
       {/* Header row */}
-      <div className="hidden sm:grid grid-cols-[1fr_70px_60px_70px_30px] text-[9px] text-on-surface-variant tracking-widest uppercase font-bold gap-2 px-1">
+      <div className="kx-watchlist-columns hidden sm:grid grid-cols-[1fr_70px_60px_70px_30px] text-[9px] text-on-surface-variant tracking-widest uppercase font-bold gap-2 px-1">
         <span>Pair</span>
         <span className="text-right">Price</span>
         <span className="text-right">24h%</span>
@@ -123,7 +123,7 @@ function WatchlistRowCmp({
           onSelect();
         }
       }}
-      className={`grid grid-cols-[1fr_70px_60px_70px_30px] items-center gap-2 px-1 py-2 text-left transition-colors cursor-pointer ${
+      className={`kx-watchlist-row grid grid-cols-[1fr_70px_60px_70px_30px] items-center gap-2 px-1 py-2 text-left transition-colors cursor-pointer ${
         isActive
           ? "bg-cyan/10 hover:bg-cyan/15"
           : "hover:bg-surface-container"

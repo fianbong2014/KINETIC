@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import dynamic from "next/dynamic";
 import { LayoutGrid, LayoutDashboard } from "lucide-react";
 import { Workspace1 } from "@/components/dashboard/workspace-1";
@@ -19,19 +19,22 @@ const STORAGE_KEY = "kinetic-active-workspace";
 
 type Workspace = "1" | "2";
 
-export function WorkspaceSwitcher() {
-  const [active, setActive] = useState<Workspace>("1");
-  const [hydrated, setHydrated] = useState(false);
+function readWorkspace(): Workspace {
+  try { return window.localStorage.getItem(STORAGE_KEY) === "2" ? "2" : "1"; }
+  catch { return "1"; }
+}
 
-  useEffect(() => {
-    try {
-      const saved = window.localStorage.getItem(STORAGE_KEY);
-      if (saved === "1" || saved === "2") setActive(saved);
-    } catch {
-      // ignore
-    }
-    setHydrated(true);
-  }, []);
+function subscribeWorkspace(callback: () => void) {
+  window.addEventListener("storage", callback);
+  return () => window.removeEventListener("storage", callback);
+}
+
+function serverWorkspace(): Workspace { return "1"; }
+
+export function WorkspaceSwitcher() {
+  const saved = useSyncExternalStore(subscribeWorkspace, readWorkspace, serverWorkspace);
+  const [selected, setActive] = useState<Workspace | null>(null);
+  const active = selected ?? saved;
 
   function switchTo(ws: Workspace) {
     setActive(ws);
@@ -43,33 +46,32 @@ export function WorkspaceSwitcher() {
   }
 
   return (
-    <div className="flex flex-col gap-3 lg:gap-4">
+    <div className="kx-enter mx-auto flex max-w-[1800px] flex-col gap-5">
       <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div><p className="kx-eyebrow mb-2">TRADING WORKSPACE</p><h1 className="text-3xl font-medium tracking-[-0.045em]">Terminal<span className="text-cyan">.</span></h1></div>
         <div
-          role="tablist"
+          role="group"
           aria-label="Dashboard workspace"
-          className="inline-flex bg-surface-container-low border border-outline-variant/10 p-0.5"
+          className="inline-flex rounded-lg bg-surface-container-low border border-border p-1"
         >
           <WorkspaceTab
             active={active === "1"}
             onClick={() => switchTo("1")}
-            label="Workspace 1"
-            sublabel="Default"
+            label="Focus"
+            sublabel="Standard layout"
             icon={<LayoutDashboard size={13} />}
           />
           <WorkspaceTab
             active={active === "2"}
             onClick={() => switchTo("2")}
-            label="Workspace 2"
-            sublabel="Freeform"
+            label="Custom"
+            sublabel="Arrange your panels"
             icon={<LayoutGrid size={13} />}
           />
         </div>
       </div>
 
-      {/* Render whichever workspace is active. Avoid mounting Workspace2
-          before hydration so localStorage choice wins on first paint. */}
-      {hydrated && active === "2" ? <Workspace2 /> : <Workspace1 />}
+      {active === "2" ? <Workspace2 /> : <Workspace1 />}
     </div>
   );
 }
@@ -89,10 +91,9 @@ function WorkspaceTab({
 }) {
   return (
     <button
-      role="tab"
-      aria-selected={active}
+      aria-pressed={active}
       onClick={onClick}
-      className={`flex items-center gap-2 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest transition-colors ${
+      className={`flex items-center gap-2 rounded-md px-3 py-2 text-xs font-medium transition-colors ${
         active
           ? "bg-cyan/15 text-cyan"
           : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high/50"

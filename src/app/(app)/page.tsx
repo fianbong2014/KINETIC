@@ -1,133 +1,47 @@
 "use client";
 
 import Link from "next/link";
-import {
-  LayoutGrid,
-  LineChart,
-  Shield,
-  FileText,
-  Settings,
-  Zap,
-  ArrowRight,
-  Bot,
-  CandlestickChart,
-} from "lucide-react";
+import { ArrowDownRight, ArrowRight, ArrowUpRight, Bot, CandlestickChart, FileText, LineChart, Shield } from "lucide-react";
+import { usePrice } from "@/components/providers/price-provider";
+import { PriceChart } from "@/components/dashboard/price-chart";
+import { Watchlist } from "@/components/dashboard/watchlist";
+import { formatUsd } from "@/lib/format";
 
-const menuItems = [
-  {
-    icon: LayoutGrid,
-    label: "Terminal",
-    description: "Live trading dashboard with real-time BTC price, order book, and trade execution",
-    href: "/dashboard",
-    accent: "bg-primary/10 group-hover:bg-primary/20",
-    iconColor: "text-primary",
-    borderColor: "border-primary/20 group-hover:border-primary/40",
-  },
-  {
-    icon: CandlestickChart,
-    label: "Chart",
-    description: "Full-screen chart with customizable indicators (EMA, BB, VWAP), Heikin-Ashi mode, RSI & MACD panes, and saveable templates",
-    href: "/chart",
-    accent: "bg-[#ffd166]/10 group-hover:bg-[#ffd166]/20",
-    iconColor: "text-[#ffd166]",
-    borderColor: "border-[#ffd166]/20 group-hover:border-[#ffd166]/40",
-  },
-  {
-    icon: LineChart,
-    label: "Signals",
-    description: "Signal analysis with zone detection, technical alpha, and trade plan generation",
-    href: "/signals",
-    accent: "bg-emerald-accent/10 group-hover:bg-emerald-accent/20",
-    iconColor: "text-emerald-accent",
-    borderColor: "border-emerald-accent/20 group-hover:border-emerald-accent/40",
-  },
-  {
-    icon: Bot,
-    label: "Bots",
-    description: "Auto-execute trades when multi-timeframe signals align with your strategy",
-    href: "/bots",
-    accent: "bg-cyan/10 group-hover:bg-cyan/20",
-    iconColor: "text-cyan",
-    borderColor: "border-cyan/20 group-hover:border-cyan/40",
-  },
-  {
-    icon: Shield,
-    label: "Risk",
-    description: "Risk command center — portfolio health, exposure heatmap, and position sizing",
-    href: "/risk",
-    accent: "bg-secondary/10 group-hover:bg-secondary/20",
-    iconColor: "text-secondary",
-    borderColor: "border-secondary/20 group-hover:border-secondary/40",
-  },
-  {
-    icon: FileText,
-    label: "Journal",
-    description: "Trade journal with equity curve, performance analytics, and history tracking",
-    href: "/journal",
-    accent: "bg-[#a78bfa]/10 group-hover:bg-[#a78bfa]/20",
-    iconColor: "text-[#a78bfa]",
-    borderColor: "border-[#a78bfa]/20 group-hover:border-[#a78bfa]/40",
-  },
-  {
-    icon: Settings,
-    label: "Settings",
-    description: "Configure API connections, trading preferences, risk limits, and notifications",
-    href: "/settings",
-    accent: "bg-on-surface-variant/10 group-hover:bg-on-surface-variant/20",
-    iconColor: "text-on-surface-variant",
-    borderColor: "border-on-surface-variant/20 group-hover:border-on-surface-variant/40",
-  },
+const tools = [
+  { icon: CandlestickChart, label: "Advanced chart", description: "Indicators, drawings & saved layouts", href: "/chart" },
+  { icon: LineChart, label: "Signal analysis", description: "Technical signals across timeframes", href: "/signals" },
+  { icon: Bot, label: "Trading bots", description: "Manage automated strategies", href: "/bots" },
+  { icon: Shield, label: "Risk management", description: "Exposure, limits & position sizing", href: "/risk" },
+  { icon: FileText, label: "Trade journal", description: "Review trades & track performance", href: "/journal" },
 ];
 
 export default function Home() {
+  const { pair, price, high24h, low24h, priceChangePercent24h, isConnected } = usePrice();
+  const positive = priceChangePercent24h >= 0;
   return (
-    <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
-      {/* Logo + Title */}
-      <div className="flex flex-col items-center mb-10">
-        <div className="w-14 h-14 bg-primary flex items-center justify-center mb-4">
-          <Zap className="w-7 h-7 text-primary-foreground" />
-        </div>
-        <h1 className="text-3xl sm:text-4xl font-black font-heading tracking-tighter uppercase text-on-surface">
-          Kinetic
-        </h1>
-        <p className="text-xs sm:text-sm text-on-surface-variant mt-1 tracking-widest uppercase">
-          Trading Terminal
-        </p>
+    <div className="kx-enter mx-auto max-w-[1800px]">
+      <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
+        <div><p className="kx-eyebrow mb-2">YOUR WORKSPACE</p><h1 className="text-3xl font-medium tracking-[-0.045em] sm:text-4xl">Market overview<span className="text-cyan">.</span></h1><p className="mt-2 text-xs text-on-surface-variant sm:text-sm">Follow the market. Manage your next move.</p></div>
+        <Link href="/dashboard" className="kx-primary-button">Open terminal<ArrowUpRight size={16} /></Link>
       </div>
-
-      {/* Block Menu Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 w-full max-w-4xl">
-        {menuItems.map((item) => (
-          <Link
-            key={item.label}
-            href={item.href}
-            className={`group relative flex flex-col gap-4 p-6 bg-surface-container border ${item.borderColor} transition-all duration-200 hover:translate-y-[-2px]`}
-          >
-            {/* Icon */}
-            <div className={`w-10 h-10 ${item.accent} flex items-center justify-center transition-colors`}>
-              <item.icon className={`w-5 h-5 ${item.iconColor}`} />
-            </div>
-
-            {/* Text */}
-            <div className="flex-1">
-              <h2 className="text-base font-bold font-heading tracking-tight uppercase text-on-surface mb-1">
-                {item.label}
-              </h2>
-              <p className="text-xs text-on-surface-variant leading-relaxed">
-                {item.description}
-              </p>
-            </div>
-
-            {/* Arrow */}
-            <ArrowRight className="w-4 h-4 text-on-surface-variant group-hover:text-on-surface transition-colors absolute top-6 right-6 opacity-0 group-hover:opacity-100" />
-          </Link>
-        ))}
+      <section aria-label="Selected market" className="mb-6 grid grid-cols-2 gap-y-5 border-y border-border py-5 sm:grid-cols-4">
+        <div><p className="kx-eyebrow">{pair.display}</p><p className="mt-2 text-2xl font-medium tracking-tight tabular-nums">{price > 0 ? formatUsd(price) : "—"}</p></div>
+        <div className="pl-5 sm:border-l sm:border-border"><p className="kx-eyebrow">24h change</p><p className={`mt-2 flex items-center gap-1 text-xl tabular-nums ${positive ? "text-emerald-accent" : "text-crimson"}`}>{price > 0 ? <>{positive ? <ArrowUpRight size={19} /> : <ArrowDownRight size={19} />}{positive ? "+" : ""}{priceChangePercent24h.toFixed(2)}%</> : "—"}</p></div>
+        <div className="sm:border-l sm:border-border sm:pl-5"><p className="kx-eyebrow">24h high</p><p className="mt-2 text-xl tabular-nums">{high24h > 0 ? formatUsd(high24h) : "—"}</p></div>
+        <div className="pl-5 sm:border-l sm:border-border"><p className="kx-eyebrow">24h low</p><p className="mt-2 text-xl tabular-nums">{low24h > 0 ? formatUsd(low24h) : "—"}</p></div>
+      </section>
+      <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_290px]">
+        <section className="min-w-0">
+          <div className="mb-4 flex items-center justify-between"><h2 className="text-sm font-medium">Market activity</h2><span className="flex items-center gap-2 text-[10px] text-on-surface-variant"><span className={`size-1.5 rounded-full ${isConnected ? "bg-emerald-accent" : "bg-orange"}`} />{isConnected ? "Live feed" : "Connecting"}</span></div>
+          <div className="kx-chart-frame flex h-[420px] min-w-0 flex-col overflow-hidden rounded-xl border border-border sm:h-[510px]"><PriceChart /></div>
+          <div className="mt-4 flex items-center justify-between border-b border-border pb-4 text-xs"><span className="text-on-surface-variant">Explore Bitcoin market data and network activity</span><Link href="/btc" className="ml-4 flex shrink-0 items-center gap-2 text-cyan">BTC monitor<ArrowRight size={14} /></Link></div>
+        </section>
+        <aside className="min-w-0">
+          <Watchlist />
+          <h2 className="mb-2 mt-7 text-sm font-medium">Trading tools</h2>
+          <div>{tools.map((item) => <Link key={item.href} href={item.href} className="kx-tool-link group flex items-center gap-3 border-b border-border py-4"><item.icon size={18} strokeWidth={1.6} className="shrink-0 text-on-surface-variant group-hover:text-cyan" /><div className="min-w-0 flex-1"><h3 className="text-xs font-medium">{item.label}</h3><p className="mt-1 text-[10px] text-on-surface-variant">{item.description}</p></div><ArrowUpRight size={14} className="text-on-surface-variant group-hover:text-cyan" /></Link>)}</div>
+        </aside>
       </div>
-
-      {/* Version */}
-      <span className="text-[10px] text-on-surface-variant/50 font-mono mt-8 tracking-wider">
-        KINETIC v0.1.1 // BTC/USDT
-      </span>
     </div>
   );
 }

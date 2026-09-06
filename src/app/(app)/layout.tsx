@@ -24,10 +24,11 @@ export default function AppLayout({
             <Sidebar />
           </div>
 
-          <div className="pl-0 lg:pl-20 min-h-screen flex flex-col">
+          <a href="#main-content" className="kx-skip-link">Skip to content</a>
+          <div className="pl-0 lg:pl-52 min-h-screen flex flex-col">
             <Topbar />
 
-            <main className="flex-1 p-3 sm:p-4 lg:p-6 pb-20 lg:pb-6">
+            <main id="main-content" className="kx-workspace min-w-0 flex-1 p-4 sm:p-5 lg:p-7 pb-24 lg:pb-7">
               {children}
             </main>
 

@@ -4,7 +4,7 @@ import { Suspense, useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Zap, LogIn } from "lucide-react";
+import { LogIn } from "lucide-react";
 
 export default function LoginPage() {
   return (
@@ -52,50 +52,47 @@ function LoginForm() {
   return (
     <div className="flex flex-col items-center">
       {/* Logo */}
-      <div className="flex flex-col items-center mb-8">
-        <div className="w-12 h-12 bg-primary flex items-center justify-center mb-3">
-          <Zap className="w-6 h-6 text-primary-foreground" />
-        </div>
-        <h1 className="text-2xl font-black font-heading tracking-tighter uppercase text-on-surface">
-          Kinetic
+      <div className="flex w-full flex-col items-start mb-8">
+        <h1 className="text-3xl font-medium tracking-[-0.04em] text-on-surface">
+          Welcome back.
         </h1>
-        <p className="text-xs text-on-surface-variant tracking-widest uppercase mt-1">
-          Sign in to Terminal
+        <p className="text-sm text-on-surface-variant mt-3">
+          Sign in to your trading workspace.
         </p>
       </div>
 
       {/* Form */}
       <form onSubmit={handleSubmit} className="w-full flex flex-col gap-4">
         {error && (
-          <div className="bg-destructive/10 border border-destructive/20 p-3 text-sm text-crimson-accent">
+          <div role="alert" className="bg-destructive/10 border border-destructive/20 p-3 text-sm text-crimson">
             {error}
           </div>
         )}
 
         <div className="flex flex-col gap-1.5">
-          <label className="text-[10px] text-on-surface-variant tracking-wider uppercase font-bold">
-            Email
-          </label>
+          <label htmlFor="login-email" className="text-xs text-on-surface-variant font-medium">Email</label>
           <input
             type="email"
+            id="login-email"
+            autoComplete="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
-            className="bg-surface-container-lowest border border-outline-variant/10 px-4 py-3 text-sm text-on-surface font-mono placeholder:text-on-surface-variant/40 focus:outline-none focus:border-primary transition-colors"
+            className="bg-surface-container-lowest border border-border px-4 py-3 text-sm text-on-surface placeholder:text-on-surface-variant/50 focus:outline-none focus:border-primary transition-colors"
             placeholder="trader@kinetic.io"
           />
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <label className="text-[10px] text-on-surface-variant tracking-wider uppercase font-bold">
-            Password
-          </label>
+          <label htmlFor="login-password" className="text-xs text-on-surface-variant font-medium">Password</label>
           <input
             type="password"
+            id="login-password"
+            autoComplete="current-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
-            className="bg-surface-container-lowest border border-outline-variant/10 px-4 py-3 text-sm text-on-surface font-mono placeholder:text-on-surface-variant/40 focus:outline-none focus:border-primary transition-colors"
+            className="bg-surface-container-lowest border border-border px-4 py-3 text-sm text-on-surface placeholder:text-on-surface-variant/50 focus:outline-none focus:border-primary transition-colors"
             placeholder="••••••••"
           />
         </div>

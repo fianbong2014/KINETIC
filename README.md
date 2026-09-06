@@ -11,14 +11,15 @@
 
 ## Overview
 
-KINETIC เป็น trading terminal ที่ออกแบบมาในสไตล์ "The Kinetic Monolith" - ใช้ dark theme แบบ obsidian slab ที่ข้อมูลถูก "สลักด้วยแสง" บนพื้นผิวมืด ตัวดีไซน์เน้นความเรียบหรูระดับ Bloomberg terminal แต่ลดความรกของ typical retail trading app
+KINETIC เป็น cryptocurrency trading workspace โทน graphite และ mint เน้นกราฟและข้อมูลตลาด พร้อมเมนูที่แยก Workspace กับ Strategy อย่างชัดเจน
 
 ### Design Philosophy
-- **Zero border-radius** — ทุก element เป็นรูปทรง sharp polygon
-- **No-Line Rule** — ไม่ใช้เส้น border แบ่ง section ใช้ tonal layering แทน
-- **Data is the protagonist** — typography hierarchy ที่ทำให้ตัวเลขสำคัญโดดเด่น
-- **Glassmorphism + Tonal Layering** — ความลึกสร้างจากสีพื้นหลัง ไม่ใช่ drop shadow
-
+- **Market-first overview** — ราคา กราฟสด Watchlist และทางเข้าเครื่องมือในหน้าเดียว
+- **Focused terminal** — พื้นที่กราฟขนาดใหญ่ คู่กับ order execution และ order book
+- **Calm surfaces** — สีพื้นเป็นลำดับ มุมโค้งตาม theme token และเส้นแบ่งบาง
+- **Responsive by container** — Watchlist ปรับเป็นสองบรรทัดในคอลัมน์แคบ พร้อม bottom navigation บนมือถือ
+- **Accessible interactions** — keyboard focus, form labels และ reduced-motion support
+- **Customizable** — รองรับ light/dark, สี, ฟอนต์ และรัศมีมุมผ่าน theme toolbar
 ---
 
 ## Features (สถานะปัจจุบัน)
@@ -71,7 +72,7 @@ KINETIC เป็น trading terminal ที่ออกแบบมาในส
 | Components | shadcn/ui (base-ui) |
 | Charts | Lightweight Charts 5.1 + Recharts 3.8 |
 | Icons | Lucide React |
-| Fonts | Space Grotesk (headings), Inter (body), Roboto Mono (numbers) |
+| Fonts | Inter (headings/body), Roboto Mono (numbers); optional Space Grotesk |
 | Database | PostgreSQL (Neon) + Prisma ORM |
 | Authentication | NextAuth.js v5 (credentials + JWT) |
 | Real-time | Binance WebSocket API (free, no auth) |
@@ -123,7 +124,7 @@ src/
 │   ├── globals.css             # Design system tokens + custom utilities
 │   ├── (app)/                  # Authenticated route group (with sidebar, topbar)
 │   │   ├── layout.tsx          # App shell (Sidebar, Topbar, PriceProvider, StatusBar)
-│   │   ├── page.tsx            # Home — block menu navigation
+│   │   ├── page.tsx            # Home — live market overview
 │   │   ├── dashboard/          # BTC Main Dashboard
 │   │   ├── signals/            # Signal Analysis Detail
 │   │   ├── risk/               # Risk Command Center

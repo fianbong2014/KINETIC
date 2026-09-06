@@ -2,120 +2,37 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { AnimatedPrice } from "@/components/ui/animated-price";
+import { ChevronRight, Zap } from "lucide-react";
 import { usePrice } from "@/components/providers/price-provider";
 import { useAccount } from "@/hooks/use-account";
 import { PairSelector } from "@/components/layout/pair-selector";
 import { formatUsd } from "@/lib/format";
 import { NotificationBell } from "@/components/layout/notification-bell";
 
-const navLinks = [
-  { label: "DASHBOARD", href: "/dashboard" },
-  { label: "SIGNALS", href: "/signals" },
-  { label: "RISK", href: "/risk" },
-  { label: "JOURNAL", href: "/journal" },
-];
+const titles: Record<string, string> = { dashboard: "Trading terminal", btc: "Bitcoin monitor", chart: "Chart", signals: "Signal analysis", risk: "Risk management", journal: "Trade journal", bots: "Trading bots", settings: "Settings", symbol: "Coin explorer" };
 
 export function Topbar() {
   const pathname = usePathname();
-  const { price, priceChangePercent24h, isConnected, pair } = usePrice();
-  const { balance, todayPnl, loading: accountLoading } = useAccount();
-
-  const changePercent = priceChangePercent24h
-    ? `${priceChangePercent24h >= 0 ? "+" : ""}${priceChangePercent24h.toFixed(2)}%`
-    : "+0.00%";
-
+  const { isConnected } = usePrice();
+  const { balance, todayPnl, loading } = useAccount();
+  const title = titles[pathname.split("/")[1]] || "Overview";
   return (
-    <>
-      <header className="px-4 lg:px-6 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 lg:pt-4 lg:pb-4 bg-background flex items-center justify-between gap-3">
-        {/* Left: Branding + Nav */}
-        <div className="flex items-center gap-4 lg:gap-8 min-w-0">
-          <Link href="/dashboard" className="shrink-0">
-            <span className="text-xl lg:text-2xl font-black tracking-tighter text-cyan font-heading">
-              KINETIC
-            </span>
-          </Link>
-
-          {/* Nav links — desktop only */}
-          <nav className="hidden lg:flex items-center gap-6">
-            {navLinks.map((link) => {
-              const isActive =
-                pathname === link.href ||
-                (link.href !== "#" && pathname?.startsWith(link.href));
-              return (
-                <Link
-                  key={link.label}
-                  href={link.href}
-                  className={`text-sm uppercase font-bold font-heading pb-4 transition-colors ${
-                    isActive
-                      ? "text-on-surface border-b-2 border-cyan"
-                      : "text-on-surface-variant hover:text-on-surface"
-                  }`}
-                >
-                  {link.label}
-                </Link>
-              );
-            })}
-          </nav>
+    <header className="kx-topbar sticky top-0 z-40 flex min-h-16 items-center justify-between gap-3 border-b border-border bg-background/95 px-4 py-3 backdrop-blur-xl lg:px-7">
+      <div className="flex min-w-0 items-center gap-3">
+        <Link href="/" aria-label="Kinetic overview" className="text-cyan lg:hidden"><Zap size={23} /></Link>
+        <span className="hidden text-xs text-on-surface-variant xl:inline">Workspace</span>
+        <ChevronRight size={13} className="hidden text-on-surface-variant xl:block" />
+        <span className="truncate text-xs font-medium sm:text-sm">{title}</span>
+      </div>
+      <div className="flex shrink-0 items-center gap-2 sm:gap-4">
+        <span className="hidden items-center gap-2 text-[10px] text-on-surface-variant xl:flex"><span className={`size-1.5 rounded-full ${isConnected ? "bg-emerald-accent" : "bg-orange"}`} />{isConnected ? "Market connected" : "Connecting market"}</span>
+        <div className="hidden border-l border-border pl-4 text-right md:block">
+          <p className="text-[9px] text-on-surface-variant">Paper balance</p>
+          <p className="text-xs font-medium tabular-nums">{loading ? "—" : formatUsd(balance)} <span className={`ml-2 text-[10px] ${todayPnl >= 0 ? "text-emerald-accent" : "text-crimson"}`}>{loading ? "" : `${todayPnl >= 0 ? "+" : ""}${todayPnl.toFixed(2)}`}</span></p>
         </div>
-
-        {/* Right: Price + Execute + Icons */}
-        <div className="flex items-center gap-2 lg:gap-4 min-w-0">
-          {/* Paper balance — md+ */}
-          <div className="hidden md:flex flex-col items-end">
-            <span className="text-xs font-bold text-on-surface tabular-nums">
-              {accountLoading ? "—" : formatUsd(balance)}
-            </span>
-            <span
-              className={`text-[9px] tracking-widest uppercase font-bold ${
-                todayPnl > 0
-                  ? "text-emerald-accent"
-                  : todayPnl < 0
-                    ? "text-crimson"
-                    : "text-on-surface-variant"
-              }`}
-            >
-              TODAY {todayPnl >= 0 ? "+" : ""}
-              {todayPnl.toFixed(2)}
-            </span>
-          </div>
-
-          {/* Pair selector */}
-          <PairSelector />
-
-          {/* Price display — sm+ */}
-          <div className="hidden sm:flex flex-col items-end">
-            <div className="flex items-center gap-1.5">
-              <AnimatedPrice
-                value={price}
-                size="sm"
-                className="text-xs font-bold text-on-surface-variant"
-              />
-              <span className="text-xs font-bold text-on-surface-variant hidden lg:inline">
-                {pair.display}
-              </span>
-              {isConnected && (
-                <span className="w-1.5 h-1.5 bg-emerald-accent animate-pulse" />
-              )}
-            </div>
-            <span
-              className={`text-[10px] uppercase font-bold tabular-nums ${
-                priceChangePercent24h >= 0
-                  ? "text-emerald-accent"
-                  : "text-crimson"
-              }`}
-            >
-              {changePercent}
-            </span>
-          </div>
-
-          {/* Notification bell — opens the inbox panel, shows unread count */}
-          <NotificationBell />
-        </div>
-      </header>
-
-      {/* Separation line */}
-      <div className="bg-surface-container-low h-[1px] w-full" />
-    </>
+        <PairSelector />
+        <NotificationBell />
+      </div>
+    </header>
   );
 }

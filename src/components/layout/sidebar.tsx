@@ -3,105 +3,60 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
-import {
-  LayoutGrid,
-  LineChart,
-  Shield,
-  FileText,
-  Settings,
-  Users,
-  Zap,
-  HelpCircle,
-  Code,
-  Bot,
-  Bitcoin,
-  CandlestickChart,
-  Coins,
-} from "lucide-react";
+import { ArrowUpRight, Bitcoin, Bot, CandlestickChart, Coins, FileText, Home, LayoutGrid, LineChart, Settings, Shield, Users, Zap } from "lucide-react";
 import { usePrice } from "@/components/providers/price-provider";
 
-const navItems = [
-  { icon: LayoutGrid, label: "Terminal", href: "/dashboard" },
-  { icon: Bitcoin, label: "BTC", href: "/btc" },
-  // Symbol/coin info page — href is built dynamically from the active pair
-  // so this menu always opens the currently-watched coin's detail view.
-  { icon: Coins, label: "Coin", href: "/symbol" },
-  { icon: CandlestickChart, label: "Chart", href: "/chart" },
-  { icon: LineChart, label: "Analytics", href: "/signals" },
-  { icon: Bot, label: "Bots", href: "/bots" },
-  { icon: Shield, label: "Command", href: "/risk" },
-  { icon: FileText, label: "History", href: "/journal" },
-  { icon: Settings, label: "Settings", href: "/settings" },
+const groups = [
+  { label: "Workspace", items: [
+    { icon: Home, label: "Overview", href: "/" },
+    { icon: LayoutGrid, label: "Terminal", href: "/dashboard" },
+    { icon: CandlestickChart, label: "Chart", href: "/chart" },
+    { icon: Bitcoin, label: "Bitcoin monitor", href: "/btc" },
+    { icon: Coins, label: "Coin explorer", href: "/symbol" },
+  ] },
+  { label: "Strategy", items: [
+    { icon: LineChart, label: "Signals", href: "/signals" },
+    { icon: Bot, label: "Trading bots", href: "/bots" },
+    { icon: Shield, label: "Risk management", href: "/risk" },
+    { icon: FileText, label: "Trade journal", href: "/journal" },
+  ] },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
   const { symbol } = usePrice();
   const { data: session } = useSession();
-  // Role in the session is a UI hint from the JWT — the /backoffice
-  // layout and its APIs re-check the DB, so hiding the link here is
-  // purely cosmetic. Freshly promoted admins see it after re-login.
-  const isAdmin = session?.user?.role === "ADMIN";
-  // Resolve the Coin item to /symbol/<active pair> at render time.
-  const resolvedItems = navItems.map((item) =>
-    item.href === "/symbol"
-      ? { ...item, href: `/symbol/${symbol}` }
-      : item,
-  );
-  if (isAdmin) {
-    resolvedItems.push({ icon: Users, label: "Admin", href: "/backoffice" });
-  }
-
+  const name = session?.user?.name || "Your account";
   return (
-    <aside className="fixed left-0 top-0 bottom-0 w-20 bg-surface-container-low flex flex-col items-center py-4 z-50">
-      {/* Logo */}
-      <Link
-        href="/dashboard"
-        className="w-10 h-10 bg-cyan flex items-center justify-center mb-6"
-      >
-        <Zap className="w-5 h-5 text-primary-foreground" />
+    <aside className="kx-sidebar fixed inset-y-0 left-0 z-50 flex w-52 flex-col border-r border-border bg-surface-container-low">
+      <Link href="/" className="flex h-20 shrink-0 items-center gap-2.5 px-6" aria-label="Kinetic overview">
+        <span className="flex size-8 items-center justify-center rounded-lg bg-cyan text-primary-foreground"><Zap size={19} fill="currentColor" /></span>
+        <span className="font-heading text-xl font-bold tracking-[-0.06em]">kinetic<span className="text-cyan">.</span></span>
       </Link>
-
-      {/* Nav items */}
-      <nav className="flex flex-col items-center flex-1 w-full">
-        {resolvedItems.map((item) => {
-          // Active when the path is on /symbol/* regardless of which symbol,
-          // so the Coin tab stays highlighted while you browse coins.
-          const isActive =
-            item.label === "Coin"
-              ? pathname?.startsWith("/symbol") ?? false
-              : pathname === item.href ||
-                (item.href !== "#" && pathname?.startsWith(item.href));
-          return (
-            <Link
-              key={item.label}
-              href={item.href}
-              className={`py-4 w-full flex flex-col items-center justify-center transition-colors relative ${
-                isActive
-                  ? "border-l-2 border-cyan bg-surface-container-high text-cyan"
-                  : "text-on-surface-variant hover:bg-surface-container hover:text-on-surface"
-              }`}
-            >
-              <item.icon className="w-5 h-5" />
-              <span className="text-[10px] font-medium tracking-widest uppercase mt-1">
-                {item.label}
-              </span>
-            </Link>
-          );
-        })}
+      <nav aria-label="Main navigation" className="flex-1 overflow-y-auto px-3 py-3">
+        {groups.map((group) => (
+          <div key={group.label} className="mb-7">
+            <p className="mb-3 px-3 text-[10px] font-medium uppercase tracking-[0.16em] text-on-surface-variant">{group.label}</p>
+            <div className="space-y-1">
+              {group.items.map((item) => {
+                const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+                return <Link key={item.href} href={item.href === "/symbol" ? `/symbol/${symbol}` : item.href} aria-current={active ? "page" : undefined} className={`kx-nav-link flex items-center gap-3 rounded-lg px-3 py-2.5 text-xs font-medium ${active ? "bg-cyan/10 text-cyan" : "text-on-surface-variant hover:bg-surface-container hover:text-on-surface"}`}>
+                  <item.icon size={17} strokeWidth={1.7} />{item.label}
+                  {active && <span className="ml-auto size-1 rounded-full bg-cyan" />}
+                </Link>;
+              })}
+            </div>
+          </div>
+        ))}
       </nav>
-
-      {/* Bottom section */}
-      <div className="flex flex-col items-center gap-4 mt-auto pt-4 w-full">
-        <button className="text-on-surface-variant hover:text-on-surface transition-colors">
-          <HelpCircle className="w-5 h-5" />
-        </button>
-        <button className="text-on-surface-variant hover:text-on-surface transition-colors">
-          <Code className="w-5 h-5" />
-        </button>
-        <div className="w-8 h-8 bg-surface-container-high rounded-full flex items-center justify-center mt-2">
-          <span className="text-xs text-on-surface-variant font-medium">K</span>
-        </div>
+      <div className="shrink-0 border-t border-border p-3">
+        {session?.user?.role === "ADMIN" && <Link href="/backoffice" className="kx-nav-link flex items-center gap-3 rounded-lg px-3 py-2.5 text-xs text-on-surface-variant"><Users size={17} />Backoffice</Link>}
+        <Link href="/settings" aria-current={pathname === "/settings" ? "page" : undefined} className="kx-nav-link flex items-center gap-3 rounded-lg px-3 py-2.5 text-xs text-on-surface-variant hover:text-on-surface"><Settings size={17} />Settings</Link>
+        <Link href="/settings" className="mt-3 flex items-center gap-2.5 rounded-lg bg-surface-container px-3 py-3">
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-cyan/10 text-xs font-semibold text-cyan">{name.charAt(0).toUpperCase()}</span>
+          <div className="min-w-0 flex-1"><p className="truncate text-xs font-medium">{name}</p><p className="mt-0.5 text-[10px] text-on-surface-variant">Account preferences</p></div>
+          <ArrowUpRight size={14} className="text-on-surface-variant" />
+        </Link>
       </div>
     </aside>
   );

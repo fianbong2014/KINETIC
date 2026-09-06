@@ -1,5 +1,4 @@
 "use client";
-
 import { PriceChart } from "@/components/dashboard/price-chart";
 import { OrderBook } from "@/components/dashboard/order-book";
 import { OpenPositions } from "@/components/dashboard/open-positions";
@@ -9,41 +8,18 @@ import { SignalLogic } from "@/components/dashboard/signal-logic";
 import { AlertCenter } from "@/components/dashboard/alert-center";
 import { Watchlist } from "@/components/dashboard/watchlist";
 
-// Workspace #1 — original fixed grid layout. Kept as-is so the default
-// experience is unchanged when users don't opt into the freeform layout.
 export function Workspace1() {
   return (
-    <div className="grid grid-cols-12 gap-3 lg:gap-6">
-      {/* Mobile-only: Trade Execution pinned near the top */}
-      <div className="col-span-12 xl:hidden order-1">
-        <TradeExecution />
-      </div>
-
-      {/* Left Col: Watchlist, Risk, Signal, Alerts */}
-      <div className="col-span-12 xl:col-span-3 flex flex-col gap-3 lg:gap-6 order-3 xl:order-1">
-        <Watchlist />
-        <RiskControl />
-        <SignalLogic />
-        <AlertCenter />
-      </div>
-
-      {/* Middle Col: Chart + Open Positions */}
-      <div className="col-span-12 xl:col-span-6 flex flex-col gap-3 lg:gap-6 order-2 xl:order-2">
-        <div className="flex flex-col h-[420px] md:h-[460px] xl:h-[500px] 2xl:h-[560px]">
-          <PriceChart />
-        </div>
+    <div className="grid min-w-0 grid-cols-1 gap-4 xl:grid-cols-12">
+      <div className="flex min-w-0 flex-col gap-4 xl:col-span-8 2xl:col-span-9">
+        <div className="kx-chart-frame flex h-[420px] min-w-0 flex-col overflow-hidden rounded-xl border border-border md:h-[520px] 2xl:h-[600px]"><PriceChart /></div>
         <OpenPositions />
       </div>
-
-      {/* Right Col on xl+: Order Book & Execution */}
-      <div className="hidden xl:flex xl:col-span-3 flex-col gap-6 order-3">
-        <OrderBook />
-        <TradeExecution />
+      <div className="grid min-w-0 gap-4 sm:grid-cols-2 xl:col-span-4 xl:flex xl:flex-col 2xl:col-span-3">
+        <TradeExecution /><OrderBook />
       </div>
-
-      {/* Tablet/mobile: Order Book as its own row */}
-      <div className="col-span-12 xl:hidden order-4">
-        <OrderBook />
+      <div className="grid min-w-0 gap-4 sm:grid-cols-2 xl:col-span-12 2xl:grid-cols-4">
+        <Watchlist /><RiskControl /><SignalLogic /><AlertCenter />
       </div>
     </div>
   );

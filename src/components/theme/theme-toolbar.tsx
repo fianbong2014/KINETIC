@@ -34,17 +34,9 @@ function applyTheme(draft: ThemeSettings) {
   const root = document.documentElement;
   for (const [k, v] of Object.entries(vars)) root.style.setProperty(k, v);
 
-  let styleEl = document.getElementById(
-    "kinetic-theme-radius",
-  ) as HTMLStyleElement | null;
-  if (!styleEl) {
-    styleEl = document.createElement("style");
-    styleEl.id = "kinetic-theme-radius";
-    document.head.appendChild(styleEl);
-  }
-  // Same layer + specificity as globals.css's `* { border-radius:0 !important }`,
-  // but later in source order, so this wins the cascade tiebreak.
-  styleEl.textContent = `@layer base { *, *::before, *::after { border-radius: ${radius}px !important; } }`;
+  document.getElementById("kinetic-theme-radius")?.remove();
+  root.style.setProperty("--radius", `${radius}px`);
+  root.style.colorScheme = draft.mode === "light" ? "light" : "dark";
 
   // Canvas charts can't read CSS vars reactively — notify them to re-apply.
   window.dispatchEvent(new Event(CHART_THEME_EVENT));
