@@ -10,15 +10,44 @@ export async function GET(request: NextRequest) {
   const limit = parseInt(request.nextUrl.searchParams.get("limit") || "20");
   const skip = (page - 1) * limit;
 
-  const [entries, total] = await Promise.all([
+  // Avoid streaming heavy base64 chart snapshots in the list payload —
+  // each can be ~100KB and a page of 100 entries would balloon to several
+  // MB. Surface only `hasChartSnapshot` here; the full image is fetched
+  // on demand via GET /api/journal/[id].
+  const [rawEntries, total] = await Promise.all([
     db.journalEntry.findMany({
       where: { userId: user!.id },
       orderBy: { date: "desc" },
       skip,
       take: limit,
+      select: {
+        id: true,
+        displayId: true,
+        date: true,
+        pair: true,
+        side: true,
+        entry: true,
+        exit: true,
+        pnl: true,
+        pnlPct: true,
+        rrr: true,
+        strategy: true,
+        notes: true,
+        chartSnapshotMeta: true,
+        createdAt: true,
+        updatedAt: true,
+        // explicit boolean flag — Prisma doesn't have HAS-FIELD operator,
+        // so we map after the query below.
+        chartSnapshot: true,
+      },
     }),
     db.journalEntry.count({ where: { userId: user!.id } }),
   ]);
+
+  const entries = rawEntries.map(({ chartSnapshot, ...rest }) => ({
+    ...rest,
+    hasChartSnapshot: chartSnapshot !== null && chartSnapshot.length > 0,
+  }));
 
   return NextResponse.json({ entries, total, page, limit });
 }

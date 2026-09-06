@@ -1,12 +1,15 @@
 "use client";
 
-import { Trash2 } from "lucide-react";
+import { useState } from "react";
+import { Trash2, ImageIcon } from "lucide-react";
 import { useJournal, type JournalEntry } from "@/hooks/use-journal";
 import { formatPrice, formatUsd, formatPct, formatDate } from "@/lib/format";
 import { NewEntryDialog } from "./new-entry-dialog";
+import { SnapshotLightbox } from "./snapshot-lightbox";
 
 export function JournalEntries() {
   const { entries, loading, create, remove } = useJournal();
+  const [lightboxId, setLightboxId] = useState<string | null>(null);
 
   return (
     <div className="bg-surface-container-low p-3 lg:p-4 flex flex-col gap-3">
@@ -52,10 +55,21 @@ export function JournalEntries() {
               key={entry.id}
               entry={entry}
               onDelete={() => remove(entry.id)}
+              onViewSnapshot={
+                entry.hasChartSnapshot
+                  ? () => setLightboxId(entry.id)
+                  : undefined
+              }
             />
           ))}
         </div>
       )}
+
+      <SnapshotLightbox
+        key={lightboxId || "closed"}
+        entryId={lightboxId}
+        onClose={() => setLightboxId(null)}
+      />
     </div>
   );
 }
@@ -63,9 +77,12 @@ export function JournalEntries() {
 function JournalEntryRow({
   entry,
   onDelete,
+  onViewSnapshot,
 }: {
   entry: JournalEntry;
   onDelete: () => void;
+  /** Provided when entry.hasChartSnapshot is true — opens the lightbox. */
+  onViewSnapshot?: () => void;
 }) {
   const isProfit = entry.pnl >= 0;
 
@@ -112,12 +129,24 @@ function JournalEntryRow({
         <span className="text-on-surface-variant font-sans text-[10px] truncate">
           {entry.strategy}
         </span>
-        <button
-          onClick={handleDelete}
-          className="opacity-0 group-hover:opacity-100 text-on-surface-variant hover:text-crimson transition-all"
-        >
-          <Trash2 className="w-3 h-3" />
-        </button>
+        <div className="flex items-center justify-end gap-1.5">
+          {onViewSnapshot && (
+            <button
+              onClick={onViewSnapshot}
+              className="text-cyan hover:opacity-80 transition-opacity"
+              title="View chart snapshot"
+              aria-label="View chart snapshot"
+            >
+              <ImageIcon className="w-3 h-3" />
+            </button>
+          )}
+          <button
+            onClick={handleDelete}
+            className="opacity-0 group-hover:opacity-100 text-on-surface-variant hover:text-crimson transition-all"
+          >
+            <Trash2 className="w-3 h-3" />
+          </button>
+        </div>
       </div>
 
       {/* Desktop expanded notes on hover */}
@@ -153,6 +182,16 @@ function JournalEntryRow({
             >
               {formatUsd(entry.pnl, { signed: true })}
             </span>
+            {onViewSnapshot && (
+              <button
+                onClick={onViewSnapshot}
+                className="text-cyan hover:opacity-80"
+                title="View chart snapshot"
+                aria-label="View chart snapshot"
+              >
+                <ImageIcon className="w-3 h-3" />
+              </button>
+            )}
             <button
               onClick={handleDelete}
               className="text-on-surface-variant hover:text-crimson"

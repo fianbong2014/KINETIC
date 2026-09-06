@@ -58,7 +58,10 @@ export async function PATCH(
       }
     }
 
-    const [updated] = await db.$transaction([
+    // Run as a transaction; capture both the updated position and the
+    // newly-created journal entry so the client can attach an auto chart
+    // snapshot to the entry without a second roundtrip to find its id.
+    const [updated, , journalEntry] = await db.$transaction([
       db.position.update({
         where: { id },
         data: {
@@ -87,10 +90,11 @@ export async function PATCH(
           strategy: body.strategy || "Manual close",
           notes: body.notes || "",
         },
+        select: { id: true, displayId: true },
       }),
     ]);
 
-    return NextResponse.json(updated);
+    return NextResponse.json({ ...updated, journalEntryId: journalEntry.id });
   }
 
   // Not closing — plain update, whitelisted fields only

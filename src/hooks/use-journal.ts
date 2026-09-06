@@ -2,6 +2,24 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+export interface JournalSnapshotMeta {
+  symbol?: string;
+  capturedAt?: string;
+  entry?: number;
+  exit?: number;
+  side?: "LONG" | "SHORT";
+  stopLoss?: number | null;
+  takeProfit?: number | null;
+  pnl?: number;
+  pnlPct?: number;
+  w?: number;
+  h?: number;
+  bytes?: number;
+}
+
+/** Row shape returned by the list endpoint — `chartSnapshot` is replaced
+ *  with a boolean flag to keep the payload small. The full image is
+ *  fetched lazily via `fetchOne(id)`. */
 export interface JournalEntry {
   id: string;
   displayId: string;
@@ -15,8 +33,16 @@ export interface JournalEntry {
   rrr: string;
   strategy: string;
   notes: string;
+  hasChartSnapshot: boolean;
+  chartSnapshotMeta: JournalSnapshotMeta | null;
   createdAt: string;
   updatedAt: string;
+}
+
+/** Shape returned by `GET /api/journal/[id]` — same as `JournalEntry`
+ *  but includes the actual snapshot data URL. */
+export interface JournalEntryFull extends Omit<JournalEntry, "hasChartSnapshot"> {
+  chartSnapshot: string | null;
 }
 
 export interface NewJournalEntry {
@@ -105,5 +131,29 @@ export function useJournal() {
     [refresh]
   );
 
-  return { entries, total, loading, error, refresh, create, update, remove };
+  /**
+   * Fetch a single entry WITH its full chart snapshot data URL.
+   * Used by the lightbox / detail view — the list endpoint omits the
+   * snapshot to keep page loads cheap.
+   */
+  const fetchOne = useCallback(
+    async (id: string): Promise<JournalEntryFull> => {
+      const res = await fetch(`/api/journal/${id}`);
+      if (!res.ok) throw new Error("Failed to fetch journal entry");
+      return (await res.json()) as JournalEntryFull;
+    },
+    []
+  );
+
+  return {
+    entries,
+    total,
+    loading,
+    error,
+    refresh,
+    create,
+    update,
+    remove,
+    fetchOne,
+  };
 }

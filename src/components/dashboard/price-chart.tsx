@@ -29,6 +29,15 @@ import {
   candlesToContext,
 } from "@/lib/custom-indicators";
 import { getChartTheme, CHART_THEME_EVENT } from "@/lib/chart-theme";
+import {
+  registerSnapshotter,
+  resizeCanvas,
+  drawSummaryOverlay,
+  dataUrlApproxBytes,
+  SNAPSHOT_JPEG_QUALITY,
+  type SnapshotMarkers,
+  type SnapshotResult,
+} from "@/lib/chart-snapshot";
 
 interface CandleData {
   time: number;
@@ -308,6 +317,115 @@ export function PriceChart() {
     window.addEventListener(CHART_THEME_EVENT, reskin);
     return () => window.removeEventListener(CHART_THEME_EVENT, reskin);
   }, []);
+
+  // Register a chart-snapshot capture function for the close flow.
+  //
+  // The snapshotter is module-singleton-registered (see lib/chart-snapshot.ts)
+  // so close handlers anywhere in the app can grab the current chart canvas
+  // without prop drilling. We temporarily add price lines for entry / exit /
+  // SL / TP so the saved image carries trade context even after the position's
+  // own visible price lines are removed by the close flow. The lines are
+  // removed immediately after `takeScreenshot()` returns — the brief visible
+  // flash (~1 frame) is acceptable.
+  //
+  // Re-registers when the visible pair changes so the captured closure
+  // always reflects the chart the user is currently looking at.
+  useEffect(() => {
+    const currentSymbol = symbol; // closure: pair on the chart right now
+
+    const snapshotter = async (
+      markers: SnapshotMarkers
+    ): Promise<SnapshotResult | null> => {
+      // Bail when the position being closed isn't the pair on screen —
+      // capturing a chart for ETH while the user is on BTC would just
+      // produce a confusing image attached to the wrong trade.
+      if (markers.asset !== currentSymbol) return null;
+
+      const chart = chartRef.current;
+      const candleSeries = candleSeriesRef.current;
+      if (!chart || !candleSeries) return null;
+
+      // Temporary marker lines — recorded so we can clean up even if the
+      // screenshot call throws.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const tempLines: any[] = [];
+      const addLine = (
+        price: number,
+        color: string,
+        title: string,
+        dashed: boolean
+      ) => {
+        try {
+          tempLines.push(
+            candleSeries.createPriceLine({
+              price,
+              color,
+              lineWidth: 1,
+              // LineStyle.Dashed = 2, Solid = 0 — using numbers avoids
+              // importing the enum at module top-level.
+              lineStyle: dashed ? 2 : 0,
+              axisLabelVisible: true,
+              title,
+            })
+          );
+        } catch {
+          // Ignore — invalid price etc.
+        }
+      };
+
+      const pnl = markers.pnl;
+      addLine(markers.entry, "#00ffff", "ENTRY", true);
+      addLine(
+        markers.exit,
+        pnl >= 0 ? "#50c878" : "#ff716c",
+        "EXIT",
+        true
+      );
+      if (markers.stopLoss && markers.stopLoss > 0) {
+        addLine(markers.stopLoss, "#ff716c", "SL", false);
+      }
+      if (markers.takeProfit && markers.takeProfit > 0) {
+        addLine(markers.takeProfit, "#50c878", "TP", false);
+      }
+
+      // Yield one frame so lightweight-charts paints the new lines.
+      await new Promise<void>((r) => requestAnimationFrame(() => r()));
+
+      let result: SnapshotResult | null = null;
+      try {
+        const raw: HTMLCanvasElement = chart.takeScreenshot();
+        if (raw && raw.width > 0 && raw.height > 0) {
+          const { canvas, width, height } = resizeCanvas(raw);
+          // Resolve label at capture time so the interval is fresh
+          // (the user might have switched TFs since registration).
+          const symbolLabel = `${pair.display} • ${currentIntervalRef.current.toUpperCase()}`;
+          drawSummaryOverlay(canvas, markers, { symbolLabel });
+          const dataUrl = canvas.toDataURL("image/jpeg", SNAPSHOT_JPEG_QUALITY);
+          result = {
+            dataUrl,
+            width,
+            height,
+            approxBytes: dataUrlApproxBytes(dataUrl),
+          };
+        }
+      } catch {
+        result = null;
+      } finally {
+        // Always remove temp lines, even on failure.
+        for (const line of tempLines) {
+          try {
+            candleSeries.removePriceLine(line);
+          } catch {
+            // ignore
+          }
+        }
+      }
+      return result;
+    };
+
+    const unregister = registerSnapshotter(snapshotter);
+    return unregister;
+  }, [pair.display, symbol]);
 
   // Sync custom indicators — create LineSeries for each enabled overlay
   // indicator and recompute values whenever candles or indicator list change.

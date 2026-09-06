@@ -85,6 +85,10 @@ export async function POST(
     }
   }
 
+  // Captured inside the transaction; returned to the client so the
+  // auto-chart-snapshot upload can target this entry directly.
+  let journalEntryId: string | null = null;
+
   await db.$transaction(async (tx) => {
     if (isFullClose) {
       // Full close via this endpoint — mark original as closed
@@ -138,7 +142,7 @@ export async function POST(
       if (m) n = parseInt(m[1]) + 1;
     }
 
-    await tx.journalEntry.create({
+    const created = await tx.journalEntry.create({
       data: {
         userId: user!.id,
         displayId: `K-${n}`,
@@ -157,7 +161,9 @@ export async function POST(
           ? ""
           : `Partial exit of ${closeSize} / ${original.size} ${original.asset}`,
       },
+      select: { id: true },
     });
+    journalEntryId = created.id;
   });
 
   return NextResponse.json({
@@ -165,5 +171,6 @@ export async function POST(
     pnl,
     remainingSize,
     fullyClosed: isFullClose,
+    journalEntryId,
   });
 }

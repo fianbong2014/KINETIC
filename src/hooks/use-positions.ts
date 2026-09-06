@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { captureChartSnapshot } from "@/lib/chart-snapshot";
 
 export interface Position {
   id: string;
@@ -79,8 +80,71 @@ export function usePositions(status: "active" | "closed" | "all" = "active") {
     [refresh]
   );
 
+  // Best-effort: capture the price chart and attach it to the journal
+  // entry that was just created server-side. Never throws / blocks the
+  // close flow — if the user is on /journal or a different pair than
+  // the position, the snapshotter returns null and we silently skip.
+  const attachSnapshot = useCallback(
+    async (
+      journalEntryId: string | null | undefined,
+      pos: Pick<
+        Position,
+        "asset" | "entry" | "side" | "stopLoss" | "takeProfit"
+      >,
+      exit: number,
+      pnl: number
+    ) => {
+      if (!journalEntryId) return;
+      const pnlPct =
+        pos.entry > 0 ? (pnl / pos.entry) * 100 : 0;
+
+      const snap = await captureChartSnapshot({
+        asset: pos.asset,
+        entry: pos.entry,
+        exit,
+        side: pos.side,
+        stopLoss: pos.stopLoss,
+        takeProfit: pos.takeProfit,
+        pnl,
+        pnlPct,
+      });
+      if (!snap) return;
+
+      try {
+        await fetch(`/api/journal/${journalEntryId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            chartSnapshot: snap.dataUrl,
+            chartSnapshotMeta: {
+              symbol: pos.asset,
+              capturedAt: new Date().toISOString(),
+              entry: pos.entry,
+              exit,
+              side: pos.side,
+              stopLoss: pos.stopLoss,
+              takeProfit: pos.takeProfit,
+              pnl,
+              pnlPct,
+              w: snap.width,
+              h: snap.height,
+              bytes: snap.approxBytes,
+            },
+          }),
+        });
+      } catch {
+        // Snapshot attach is best-effort — swallow.
+      }
+    },
+    []
+  );
+
   const close = useCallback(
     async (id: string, exit: number, pnl: number) => {
+      // Capture the position state BEFORE the server close so we still
+      // have entry/side/SL/TP after `refresh()` rebuilds the list.
+      const closing = positions.find((p) => p.id === id) ?? null;
+
       const res = await fetch(`/api/positions/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -92,14 +156,22 @@ export function usePositions(status: "active" | "closed" | "all" = "active") {
         }),
       });
       if (!res.ok) throw new Error("Failed to close position");
+      const data = await res.json();
       await refresh();
-      return res.json();
+      if (closing) {
+        // Fire-and-forget — don't await before returning so the UI
+        // updates immediately. The snapshot lands a beat later.
+        void attachSnapshot(data.journalEntryId, closing, exit, pnl);
+      }
+      return data;
     },
-    [refresh]
+    [refresh, positions, attachSnapshot]
   );
 
   const partialClose = useCallback(
     async (id: string, closeSize: number, exit: number) => {
+      const closing = positions.find((p) => p.id === id) ?? null;
+
       const res = await fetch(`/api/positions/${id}/partial-close`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -109,10 +181,15 @@ export function usePositions(status: "active" | "closed" | "all" = "active") {
         const err = await res.json();
         throw new Error(err.error || "Failed to partial-close");
       }
+      const data = await res.json();
       await refresh();
-      return res.json();
+      if (closing) {
+        const pnl = typeof data.pnl === "number" ? data.pnl : 0;
+        void attachSnapshot(data.journalEntryId, closing, exit, pnl);
+      }
+      return data;
     },
-    [refresh]
+    [refresh, positions, attachSnapshot]
   );
 
   const modifySLTP = useCallback(
