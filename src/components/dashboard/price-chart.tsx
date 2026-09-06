@@ -755,9 +755,9 @@ export function PriceChart() {
     <div className={containerClasses}>
       {/* Chart Header */}
       <div className="p-3 lg:p-4 flex justify-between items-center bg-surface-container-high/50 backdrop-blur-sm z-10 shrink-0 gap-2">
-        <div className="flex items-center gap-2 lg:gap-4 min-w-0">
-          <div className="flex flex-col min-w-0">
-            <span className="text-sm lg:text-lg font-heading font-black text-on-surface truncate">
+        <div className="flex flex-wrap items-center gap-2 lg:gap-4 min-w-0">
+          <div className="flex shrink-0 flex-col">
+            <span className="text-sm font-heading font-semibold text-on-surface">
               {pair.base} / {pair.quote}
             </span>
             <span className="text-[9px] lg:text-[10px] text-on-surface-variant font-bold uppercase tracking-widest">
@@ -804,7 +804,7 @@ export function PriceChart() {
         {/* Right side info */}
         <div className="flex items-center gap-2 lg:gap-3">
           {high24h > 0 && (
-            <div className="hidden xl:flex items-center gap-4 text-[10px] font-bold tabular-nums mr-2">
+            <div className="hidden 2xl:flex items-center gap-4 text-[10px] font-bold tabular-nums mr-2">
               <span className="text-on-surface-variant">
                 H:{" "}
                 <span className="text-on-surface">

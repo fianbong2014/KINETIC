@@ -4,7 +4,7 @@ import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Zap, UserPlus } from "lucide-react";
+import { UserPlus } from "lucide-react";
 import { useToast } from "@/components/providers/toast-provider";
 
 export default function RegisterPage() {
@@ -72,77 +72,74 @@ export default function RegisterPage() {
   return (
     <div className="flex flex-col items-center">
       {/* Logo */}
-      <div className="flex flex-col items-center mb-8">
-        <div className="w-12 h-12 bg-primary flex items-center justify-center mb-3">
-          <Zap className="w-6 h-6 text-primary-foreground" />
-        </div>
-        <h1 className="text-2xl font-black font-heading tracking-tighter uppercase text-on-surface">
-          Kinetic
+      <div className="flex w-full flex-col items-start mb-8">
+        <h1 className="text-3xl font-medium tracking-[-0.04em] text-on-surface">
+          Get started.
         </h1>
-        <p className="text-xs text-on-surface-variant tracking-widest uppercase mt-1">
-          Create Account
+        <p className="text-sm text-on-surface-variant mt-3">
+          Create your Kinetic account.
         </p>
       </div>
 
       {/* Form */}
       <form onSubmit={handleSubmit} className="w-full flex flex-col gap-4">
         {error && (
-          <div className="bg-destructive/10 border border-destructive/20 p-3 text-sm text-crimson-accent">
+          <div role="alert" className="bg-destructive/10 border border-destructive/20 p-3 text-sm text-crimson">
             {error}
           </div>
         )}
 
         <div className="flex flex-col gap-1.5">
-          <label className="text-[10px] text-on-surface-variant tracking-wider uppercase font-bold">
-            Name
-          </label>
+          <label htmlFor="register-name" className="text-xs text-on-surface-variant font-medium">Name</label>
           <input
             type="text"
+            id="register-name"
+            autoComplete="name"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="bg-surface-container-lowest border border-outline-variant/10 px-4 py-3 text-sm text-on-surface font-mono placeholder:text-on-surface-variant/40 focus:outline-none focus:border-primary transition-colors"
+            className="bg-surface-container-lowest border border-border px-4 py-3 text-sm text-on-surface placeholder:text-on-surface-variant/50 focus:outline-none focus:border-primary transition-colors"
             placeholder="Trader"
           />
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <label className="text-[10px] text-on-surface-variant tracking-wider uppercase font-bold">
-            Email
-          </label>
+          <label htmlFor="register-email" className="text-xs text-on-surface-variant font-medium">Email</label>
           <input
             type="email"
+            id="register-email"
+            autoComplete="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
-            className="bg-surface-container-lowest border border-outline-variant/10 px-4 py-3 text-sm text-on-surface font-mono placeholder:text-on-surface-variant/40 focus:outline-none focus:border-primary transition-colors"
+            className="bg-surface-container-lowest border border-border px-4 py-3 text-sm text-on-surface placeholder:text-on-surface-variant/50 focus:outline-none focus:border-primary transition-colors"
             placeholder="trader@kinetic.io"
           />
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <label className="text-[10px] text-on-surface-variant tracking-wider uppercase font-bold">
-            Password
-          </label>
+          <label htmlFor="register-password" className="text-xs text-on-surface-variant font-medium">Password</label>
           <input
             type="password"
+            id="register-password"
+            autoComplete="new-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
-            className="bg-surface-container-lowest border border-outline-variant/10 px-4 py-3 text-sm text-on-surface font-mono placeholder:text-on-surface-variant/40 focus:outline-none focus:border-primary transition-colors"
+            className="bg-surface-container-lowest border border-border px-4 py-3 text-sm text-on-surface placeholder:text-on-surface-variant/50 focus:outline-none focus:border-primary transition-colors"
             placeholder="••••••••"
           />
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <label className="text-[10px] text-on-surface-variant tracking-wider uppercase font-bold">
-            Confirm Password
-          </label>
+          <label htmlFor="register-confirmPassword" className="text-xs text-on-surface-variant font-medium">Confirm Password</label>
           <input
             type="password"
+            id="register-confirmPassword"
+            autoComplete="new-password"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             required
-            className="bg-surface-container-lowest border border-outline-variant/10 px-4 py-3 text-sm text-on-surface font-mono placeholder:text-on-surface-variant/40 focus:outline-none focus:border-primary transition-colors"
+            className="bg-surface-container-lowest border border-border px-4 py-3 text-sm text-on-surface placeholder:text-on-surface-variant/50 focus:outline-none focus:border-primary transition-colors"
             placeholder="••••••••"
           />
         </div>

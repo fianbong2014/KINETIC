@@ -28,18 +28,18 @@ export interface ChartTheme {
 }
 
 export function getChartTheme(): ChartTheme {
-  const up = cssVar("--cyan-accent", "#00ffff");
-  const down = cssVar("--orange-accent", "#ff734c");
+  const up = cssVar("--cyan-accent", "#7ce8c3");
+  const down = cssVar("--orange-accent", "#e8a078");
   return {
-    background: cssVar("--background", "#0e0e0f"),
-    text: cssVar("--on-surface-variant", "#adaaab"),
+    background: cssVar("--background", "#101413"),
+    text: cssVar("--on-surface-variant", "#9eafa5"),
     grid: cssVar("--outline-dim", "rgba(72,72,73,0.12)"),
     border: cssVar("--outline-dim", "rgba(72,72,73,0.15)"),
     up,
     down,
     accent: up,
-    profit: cssVar("--emerald-accent", "#50c878"),
-    loss: cssVar("--crimson-accent", "#ff716c"),
+    profit: cssVar("--emerald-accent", "#7ce8a1"),
+    loss: cssVar("--crimson-accent", "#f08787"),
     fontFamily: cssVar("--font-sans", "'Inter', sans-serif"),
   };
 }

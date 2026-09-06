@@ -9,15 +9,13 @@ const inter = Inter({
   subsets: ["latin"],
 });
 
-const spaceGrotesk = Space_Grotesk({
-  variable: "--font-space-grotesk",
-  subsets: ["latin"],
-});
-
 const robotoMono = Roboto_Mono({
   variable: "--font-roboto-mono",
   subsets: ["latin"],
 });
+
+// Retained for the optional heading font in the theme customizer.
+const spaceGrotesk = Space_Grotesk({ variable: "--font-space-grotesk", subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "KINETIC // Trading Terminal",
@@ -35,7 +33,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0e0e0f",
+  themeColor: "#101413",
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
@@ -49,7 +47,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${inter.variable} ${spaceGrotesk.variable} ${robotoMono.variable} h-full antialiased`}
+      className={`${inter.variable} ${robotoMono.variable} ${spaceGrotesk.variable} h-full antialiased`}
     >
       <body className="min-h-screen bg-background text-foreground">
         <SessionProvider>
